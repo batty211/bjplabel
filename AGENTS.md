@@ -56,3 +56,5 @@ BJP Label is a Home Assistant based customer label tool for in-house use. The pr
 - Keep label layout values explicit so physical tuning is easy.
 - Do not add database coupling to Phase 1 print behavior.
 - Treat `backend/schema.sql` as Phase 2 planning until a backend service is implemented.
+- Do not create commits, tags, or pushes unless the user explicitly asks for that Git action in the current turn.
+- When handing work back, provide a concise summary that is enough for the user to commit manually.
