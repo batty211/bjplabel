@@ -30,17 +30,19 @@ ACHITECTURE.md                   Typo-compatible pointer to ARCHITECTURE.md
 
 1. Install and configure `hass-niimbot` in Home Assistant.
 2. Confirm the Niimbot B1 can print from Home Assistant.
-3. Copy `custom_components/bjp_label` into Home Assistant `custom_components`.
-4. Copy `www/bjp-label-card/bjp-label-card.js` into Home Assistant `/config/www/bjp-label-card/`.
-5. Add the card resource to Lovelace:
+3. Add this repository to HACS as a custom repository with category `Integration`.
+4. Install BJP Label from HACS and restart Home Assistant.
+5. Copy `www/bjp-label-card/bjp-label-card.js` into Home Assistant `/config/www/bjp-label-card/`.
+6. Add the card resource to Lovelace:
 
 ```yaml
 url: /local/bjp-label-card/bjp-label-card.js
 type: module
 ```
 
-6. Add a card to a dashboard using `examples/lovelace-card.yaml`.
-7. Restart Home Assistant after installing the integration.
+7. Add a card to a dashboard using `examples/lovelace-card.yaml`.
+
+Manual install is also possible by copying `custom_components/bjp_label` into Home Assistant `custom_components`.
 
 ## Thai Font
 
