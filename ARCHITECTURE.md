@@ -1,0 +1,121 @@
+# BJP Label Architecture
+
+## Overview
+
+BJP Label has three layers:
+
+- Lovelace custom card: the main user interface.
+- Home Assistant custom integration: service/API bridge.
+- Backend service: future persistence layer for SQLite customer history.
+
+The first production path is intentionally short:
+
+```text
+Lovelace card -> bjp_label.print_label -> niimbot.print -> Niimbot B1
+```
+
+## Frontend
+
+The frontend is a Lovelace custom card loaded from:
+
+```text
+/config/www/bjp-label-card/bjp-label-card.js
+```
+
+Responsibilities:
+
+- Render Thai customer form.
+- Provide large touch-friendly inputs and buttons.
+- Call Home Assistant services through the normal dashboard connection.
+- Avoid admin-only pages during routine use.
+
+Phase 1 service calls:
+
+- `bjp_label.print_label` for Print.
+- `bjp_label.print_label` for Save and print until persistence exists.
+
+Phase 2 service calls:
+
+- `bjp_label.save_customer`
+- `bjp_label.search_customers`
+- `bjp_label.print_customer`
+
+## Integration
+
+The custom integration lives in:
+
+```text
+custom_components/bjp_label
+```
+
+Responsibilities:
+
+- Register BJP Label services.
+- Validate service data.
+- Build the Niimbot label payload.
+- Call `niimbot.print`.
+- Keep printer target configurable.
+
+The integration must not implement Niimbot transport, Bluetooth, rasterization, or printer protocol code.
+
+## Printing
+
+BJP Label calls the existing `hass-niimbot` service:
+
+```yaml
+action: niimbot.print
+data:
+  payload:
+    - type: text
+      value: Customer Name
+      font: NotoSansThai-Regular.ttf
+      x: 24
+      y: 20
+      size: 34
+  width: 400
+  height: 240
+  rotate: 0
+target:
+  device_id: <niimbot device id>
+```
+
+Recommended first layout for Niimbot B1:
+
+- Label width: `400`
+- Label height: `240`
+- Density: `3`
+- Rotation: `0`
+- Font: `NotoSansThai-Regular.ttf`
+
+These are tuning defaults, not protocol assumptions.
+
+## Backend
+
+The backend is reserved for Phase 2.
+
+Responsibilities:
+
+- Store customer records in SQLite.
+- Provide search APIs.
+- Track print history fields.
+- Run in the background only.
+
+The backend must not become the normal user UI.
+
+## Data
+
+Phase 2 customer record:
+
+- `id`
+- `name`
+- `phone`
+- `address`
+- `note`
+- `created_at`
+- `updated_at`
+- `last_printed_at`
+- `print_count`
+
+## Permissions
+
+Normal users interact through a dashboard card. Admin access may be required only for installation, dashboard setup, and initial configuration.

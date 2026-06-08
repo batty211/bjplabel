@@ -1,0 +1,12 @@
+DOMAIN = "bjp_label"
+
+DEFAULT_FONT = "NotoSansThai-Regular.ttf"
+DEFAULT_WIDTH = 400
+DEFAULT_HEIGHT = 240
+DEFAULT_DENSITY = 3
+DEFAULT_ROTATE = 0
+
+SERVICE_PRINT_LABEL = "print_label"
+SERVICE_SAVE_CUSTOMER = "save_customer"
+SERVICE_SEARCH_CUSTOMERS = "search_customers"
+SERVICE_PRINT_CUSTOMER = "print_customer"

@@ -1,0 +1,11 @@
+{
+  "domain": "bjp_label",
+  "name": "BJP Label",
+  "codeowners": [],
+  "config_flow": false,
+  "dependencies": ["niimbot"],
+  "documentation": "https://github.com/local/bjp-label",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,13 @@
+action: bjp_label.print_label
+data:
+  device_id: replace_with_niimbot_device_id
+  name: สมชาย ใจดี
+  phone: 0812345678
+  address: 99/1 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพฯ 10110
+  note: ส่งช่วงเช้า
+  font: NotoSansThai-Regular.ttf
+  width: 400
+  height: 240
+  density: 3
+  rotate: 0
+  preview: true

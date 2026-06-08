@@ -1,0 +1,137 @@
+print_label:
+  name: Print customer label
+  description: Print a Thai customer label through the existing hass-niimbot service.
+  target:
+    device:
+      integration: niimbot
+  fields:
+    name:
+      name: Customer name
+      description: Customer name printed on line 1.
+      required: true
+      selector:
+        text:
+    phone:
+      name: Phone number
+      description: Phone number printed on line 2.
+      required: true
+      selector:
+        text:
+    address:
+      name: Address
+      description: Address printed on lines 3 and 4.
+      required: true
+      selector:
+        text:
+          multiline: true
+    note:
+      name: Note
+      description: Optional note for future persistence. It is not printed in label v1.
+      required: false
+      selector:
+        text:
+          multiline: true
+    font:
+      name: Thai font
+      description: Thai-capable .ttf filename available to hass-niimbot.
+      required: false
+      default: NotoSansThai-Regular.ttf
+      selector:
+        text:
+    width:
+      name: Label width
+      required: false
+      default: 400
+      selector:
+        number:
+          min: 10
+          max: 1600
+          mode: box
+    height:
+      name: Label height
+      required: false
+      default: 240
+      selector:
+        number:
+          min: 10
+          max: 1600
+          mode: box
+    density:
+      name: Density
+      required: false
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: slider
+    rotate:
+      name: Rotation
+      required: false
+      default: 0
+      selector:
+        select:
+          options:
+            - "0"
+            - "90"
+            - "180"
+            - "270"
+    preview:
+      name: Preview only
+      description: Generate the label image without printing.
+      required: false
+      default: false
+      selector:
+        boolean:
+    device_id:
+      name: Niimbot device id
+      description: Optional Niimbot device id. Use this when calling the service from the BJP Label card.
+      required: false
+      selector:
+        text:
+
+save_customer:
+  name: Save customer
+  description: Reserved for Phase 2 SQLite persistence.
+  fields:
+    name:
+      required: true
+      selector:
+        text:
+    phone:
+      required: true
+      selector:
+        text:
+    address:
+      required: true
+      selector:
+        text:
+          multiline: true
+    note:
+      required: false
+      selector:
+        text:
+          multiline: true
+
+search_customers:
+  name: Search customers
+  description: Reserved for Phase 2 customer search.
+  fields:
+    query:
+      required: true
+      selector:
+        text:
+
+print_customer:
+  name: Print saved customer
+  description: Reserved for Phase 2 reprint by saved customer id.
+  target:
+    device:
+      integration: niimbot
+  fields:
+    customer_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
