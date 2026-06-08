@@ -79,3 +79,5 @@ This repository contains the initial scaffold:
 - Phase 2 SQLite schema.
 
 Phase 1 persistence is intentionally not implemented yet.
+
+For the latest handoff notes, completed work, and next steps, see `PROJECT_STATUS.md`.
