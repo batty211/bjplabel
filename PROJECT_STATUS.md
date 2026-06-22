@@ -12,7 +12,8 @@ Last updated: 2026-06-22
 - Added raw `text` printing for pasted customer messages.
 - Reworked the Lovelace card to one large text box with detected-data preview.
 - Printing is disabled when the card cannot detect a name or phone number.
-- Updated the default B1 layout to 400 x 640 pixels, density 3, rotation 90.
+- Updated the default B1 layout to 640 x 384 pixels before rotation, density 3, rotation 90.
+- Added an editable formatted-label textarea; its contents are authoritative when printing.
 - Added parser regression tests for the supplied examples and reordered input.
 - Updated setup and service examples for the new workflow.
 
@@ -33,7 +34,7 @@ Last updated: 2026-06-22
 
 - Test Config Flow and service registration after a Home Assistant restart.
 - Call `bjp_label.print_label` with `preview: true` and inspect the last-label image entity.
-- Tune text positions and sizes for the actual Niimbot B1 50 x 80 mm labels.
+- Confirm the 640 x 384 pre-rotation layout on the actual Niimbot B1 50 x 80 mm labels.
 - Confirm the configured Thai font renders without missing glyphs.
 - Test a physical print after the preview layout is correct.
 

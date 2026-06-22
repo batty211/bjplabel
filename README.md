@@ -37,7 +37,7 @@ ACHITECTURE.md                   Typo-compatible pointer to ARCHITECTURE.md
 7. Add the card resource to Lovelace:
 
 ```yaml
-url: /local/bjp-label-card/bjp-label-card.js
+url: /local/bjp-label-card/bjp-label-card.js?v=0.2.1
 type: module
 ```
 

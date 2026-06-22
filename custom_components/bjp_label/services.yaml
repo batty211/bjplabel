@@ -51,7 +51,7 @@ print_label:
     width:
       name: Label width
       required: false
-      default: 400
+      default: 640
       selector:
         number:
           min: 10
@@ -60,7 +60,7 @@ print_label:
     height:
       name: Label height
       required: false
-      default: 640
+      default: 384
       selector:
         number:
           min: 10

@@ -3,8 +3,8 @@ data:
   text: |-
     เทพฤทธิ์ ดีเจริญ 0817544374
     14/23 ม.4 ต.ธรรมศาลา อ.เมือง จ.นครปฐม 73000
-  width: 400
-  height: 640
+  width: 640
+  height: 384
   density: 3
   rotate: 90
   preview: true

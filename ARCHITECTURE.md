@@ -71,8 +71,8 @@ data:
       x: 24
       y: 20
       size: 34
-  width: 400
-  height: 640
+  width: 640
+  height: 384
   rotate: 90
 target:
   device_id: <niimbot device id>
@@ -80,8 +80,8 @@ target:
 
 Recommended first layout for Niimbot B1:
 
-- Label width: `400`
-- Label height: `640`
+- Label width before rotation: `640`
+- Label height before rotation: `384`
 - Density: `3`
 - Rotation: `90`
 - Font: `NotoSansThai-Regular.ttf`

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import voluptuous as vol
 
@@ -25,6 +26,7 @@ from .const import (
     SERVICE_SAVE_CUSTOMER,
     SERVICE_SEARCH_CUSTOMERS,
 )
+from .label import build_label_payload
 from .parser import ParseError, ParsedLabel, parse_customer_text
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,6 +78,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         parsed = _parse_service_data(data)
         settings = next(iter(hass.data[DOMAIN].values()), {})
         font = data.get("font") or settings.get(CONF_FONT, DEFAULT_FONT)
+        if not os.path.isabs(font):
+            www_font = hass.config.path("www", "fonts", font)
+            if os.path.isfile(www_font):
+                font = www_font
         call_target = getattr(call, "target", None) or {}
         target_device = call_target.get("device_id") if isinstance(call_target, dict) else None
         if isinstance(target_device, list):
@@ -87,7 +93,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             raise ServiceValidationError("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Niimbot")
 
         service_data = {
-            "payload": _build_label_payload(parsed, font),
+            "payload": build_label_payload(parsed, font),
             "width": data["width"],
             "height": data["height"],
             "density": data["density"],
@@ -164,54 +170,3 @@ def _parse_service_data(data: dict) -> ParsedLabel:
         address=data.get("address", "").strip(),
         postal_code=data.get("postal_code", "").strip(),
     )
-
-
-def _build_label_payload(parsed: ParsedLabel, font: str) -> list[dict]:
-    payload = [
-        {
-            "type": "new_multiline",
-            "value": f"ส่ง {parsed.name}",
-            "font": font,
-            "x": 20,
-            "y": 18,
-            "size": 48,
-            "width": 360,
-            "height": 92,
-            "fit": True,
-        },
-        {
-            "type": "text",
-            "value": parsed.phone,
-            "font": font,
-            "x": 20,
-            "y": 122,
-            "size": 42,
-        },
-    ]
-    if parsed.address:
-        payload.append(
-            {
-                "type": "new_multiline",
-                "value": parsed.address,
-                "font": font,
-                "x": 20,
-                "y": 194,
-                "size": 38,
-                "spacing": 44,
-                "width": 360,
-                "height": 286 if parsed.postal_code else 400,
-                "fit": True,
-            }
-        )
-    if parsed.postal_code:
-        payload.append(
-            {
-                "type": "text",
-                "value": parsed.postal_code,
-                "font": font,
-                "x": 20,
-                "y": 530,
-                "size": 58,
-            }
-        )
-    return payload

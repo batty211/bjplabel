@@ -10,15 +10,18 @@ class BjpLabelCard extends HTMLElement {
   setConfig(config) {
     this.config = {
       title: "พิมพ์ฉลากลูกค้า",
-      width: 400,
-      height: 640,
+      width: 640,
+      height: 384,
       density: 3,
       rotate: 90,
       ...config,
     };
     this.text = "";
+    this.formattedText = "";
     this.status = "";
     this.parsed = this.parseText("");
+    this.formatted = this.parseFormattedText("");
+    this.parseWarning = "";
     this.render();
   }
 
@@ -40,14 +43,12 @@ class BjpLabelCard extends HTMLElement {
           <label for="customer-text">วางข้อมูลลูกค้า</label>
           <textarea id="customer-text" rows="8" placeholder="วางชื่อ เบอร์โทร และที่อยู่ที่นี่">${this.escape(this.text)}</textarea>
 
-          <section class="preview" aria-live="polite">
-            <div class="preview-title">ตัวอย่างข้อมูลที่ตรวจพบ</div>
-            <div class="preview-name" data-preview="name"></div>
-            <div class="preview-phone" data-preview="phone"></div>
-            <div class="preview-address" data-preview="address"></div>
-            <div class="preview-postal" data-preview="postal"></div>
-            <div class="warning" data-preview="warning"></div>
-          </section>
+          <div class="formatted">
+            <label for="formatted-text">ตรวจสอบและแก้ไขก่อนพิมพ์</label>
+            <div class="hint">บรรทัดแรกเป็นชื่อ บรรทัดที่สองเป็นเบอร์โทร และบรรทัดสุดท้ายเป็นรหัสไปรษณีย์</div>
+            <textarea id="formatted-text" rows="7" placeholder="ข้อความที่จัดรูปแบบแล้วจะแสดงที่นี่">${this.escape(this.formattedText)}</textarea>
+            <div class="warning" data-warning aria-live="polite"></div>
+          </div>
 
           <div class="actions">
             <button class="primary" data-action="print">พิมพ์</button>
@@ -87,39 +88,14 @@ class BjpLabelCard extends HTMLElement {
           line-height: 1.5;
           resize: vertical;
         }
-        .preview {
+        .formatted {
           margin-top: 18px;
-          padding: 16px;
-          border: 2px solid var(--divider-color);
-          border-radius: 10px;
-          background: var(--secondary-background-color);
         }
-        .preview-title {
-          margin-bottom: 12px;
+        .hint {
+          margin: -2px 0 8px;
           font-size: 17px;
-          font-weight: 700;
           color: var(--secondary-text-color);
-        }
-        .preview-name {
-          font-size: 28px;
-          font-weight: 800;
-          line-height: 1.3;
-        }
-        .preview-phone {
-          margin-top: 5px;
-          font-size: 25px;
-          font-weight: 800;
-        }
-        .preview-address {
-          margin-top: 12px;
-          white-space: pre-line;
-          font-size: 20px;
-          line-height: 1.45;
-        }
-        .preview-postal {
-          margin-top: 8px;
-          font-size: 31px;
-          font-weight: 900;
+          line-height: 1.4;
         }
         .warning {
           margin-top: 10px;
@@ -173,34 +149,43 @@ class BjpLabelCard extends HTMLElement {
       this.text = event.target.value;
       this.status = "";
       this.parsed = this.parseText(this.text);
-      this.updatePreview();
+      this.parseWarning = this.parsed.message;
+      this.formattedText = this.formatParsed(this.parsed);
+      this.formatted = this.parseFormattedText(this.formattedText);
+      this.querySelector("#formatted-text").value = this.formattedText;
+      this.updateForm();
+    });
+    this.querySelector("#formatted-text").addEventListener("input", (event) => {
+      this.formattedText = event.target.value;
+      this.status = "";
+      this.parseWarning = "";
+      this.formatted = this.parseFormattedText(this.formattedText);
+      this.updateForm();
     });
     this.querySelectorAll("button").forEach((button) => {
       button.addEventListener("click", () => this.handleAction(button.dataset.action));
     });
-    this.updatePreview();
+    this.updateForm();
   }
 
-  updatePreview() {
-    const parsed = this.parsed;
-    this.querySelector('[data-preview="name"]').textContent = parsed.name ? `ส่ง ${parsed.name}` : "";
-    this.querySelector('[data-preview="phone"]').textContent = parsed.phone;
-    this.querySelector('[data-preview="address"]').textContent = parsed.address;
-    this.querySelector('[data-preview="postal"]').textContent = parsed.postalCode;
-    this.querySelector('[data-preview="warning"]').textContent = parsed.message;
-    this.querySelector('[data-action="print"]').disabled = !parsed.valid;
+  updateForm() {
+    this.querySelector("[data-warning]").textContent = this.parseWarning || this.formatted.message;
+    this.querySelector('[data-action="print"]').disabled = !this.formatted.valid;
     this.querySelector(".status").textContent = this.status;
   }
 
   async handleAction(action) {
     if (action === "clear") {
       this.text = "";
+      this.formattedText = "";
       this.status = "ล้างข้อมูลแล้ว";
       this.parsed = this.parseText("");
+      this.formatted = this.parseFormattedText("");
+      this.parseWarning = "";
       this.render();
       return;
     }
-    if (!this.parsed.valid || !this._hass) return;
+    if (!this.formatted.valid || !this._hass) return;
 
     try {
       await this._hass.callService("bjp_label", "print_label", this.serviceData());
@@ -208,12 +193,15 @@ class BjpLabelCard extends HTMLElement {
     } catch (error) {
       this.status = `พิมพ์ไม่สำเร็จ: ${this.friendlyError(error)}`;
     }
-    this.updatePreview();
+    this.updateForm();
   }
 
   serviceData() {
     const data = {
-      text: this.text.trim(),
+      name: this.formatted.name,
+      phone: this.formatted.phone,
+      address: this.formatted.address,
+      postal_code: this.formatted.postalCode,
       width: Number(this.config.width),
       height: Number(this.config.height),
       density: Number(this.config.density),
@@ -223,6 +211,46 @@ class BjpLabelCard extends HTMLElement {
     if (this.config.device_id) data.device_id = this.config.device_id;
     if (this.config.font) data.font = this.config.font;
     return data;
+  }
+
+  formatParsed(parsed) {
+    if (!parsed.valid) return "";
+    return [
+      `ส่ง ${parsed.name}`,
+      parsed.phone,
+      ...parsed.address.split("\n").filter(Boolean),
+      parsed.postalCode,
+    ].filter(Boolean).join("\n");
+  }
+
+  parseFormattedText(value) {
+    const lines = String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) {
+      return { valid: false, name: "", phone: "", address: "", postalCode: "", message: "กรุณาตรวจสอบข้อความก่อนพิมพ์" };
+    }
+
+    const name = (lines[0] || "").replace(/^#?\s*ส่ง\s*/, "").trim();
+    const phone = lines[1] || "";
+    const phoneDigits = phone.replace(/\D/g, "");
+    let postalCode = "";
+    let addressEnd = lines.length;
+    if (lines.length > 2 && /^\d{5}$/.test(lines[lines.length - 1])) {
+      postalCode = lines[lines.length - 1];
+      addressEnd -= 1;
+    }
+    const address = lines.slice(2, addressEnd).join("\n");
+
+    if (!name) {
+      return { valid: false, name, phone, address, postalCode, message: "กรุณากรอกชื่อในบรรทัดแรก" };
+    }
+    if (phoneDigits.length < 9 || phoneDigits.length > 10) {
+      return { valid: false, name, phone, address, postalCode, message: "กรุณาตรวจสอบเบอร์โทรในบรรทัดที่สอง" };
+    }
+    return { valid: true, name, phone, address, postalCode, message: "" };
   }
 
   parseText(value) {

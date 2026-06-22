@@ -47,7 +47,7 @@ Label v1 for 50 x 80 mm paper:
 - Formatted Thai phone number
 - Auto-fitted address
 - Prominent postal code when detected
-- Default canvas `400 x 640` pixels with rotation `90`
+- Default canvas `640 x 384` pixels with rotation `90`
 
 Thai support:
 
