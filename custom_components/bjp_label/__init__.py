@@ -11,7 +11,12 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ServiceValidationError
 import homeassistant.helpers.config_validation as cv
 
@@ -86,7 +91,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         hass, f"{FRONTEND_URL}/bjp-label-card.js?v={VERSION}"
     )
 
-    async def async_print_label(call: ServiceCall) -> None:
+    async def async_print_label(call: ServiceCall) -> ServiceResponse | None:
         data = call.data
         parsed = _parse_service_data(data)
         settings = next(iter(hass.data[DOMAIN].values()), {})
@@ -105,7 +110,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         if not device_id:
             raise ServiceValidationError("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Niimbot")
 
-        await async_print_niimbot(
+        response = await async_print_niimbot(
             hass,
             payload=build_label_payload(parsed, font),
             width=data["width"],
@@ -115,7 +120,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             preview=data["preview"],
             device_id=device_id,
             context=call.context,
+            return_response=call.return_response,
         )
+        if not call.return_response:
+            return None
+        image = response.get("image") if isinstance(response, dict) else None
+        return {"image": image} if isinstance(image, str) else {}
 
     async def async_save_customer(call: ServiceCall) -> None:
         _LOGGER.warning("bjp_label.save_customer is reserved for Phase 2")
@@ -127,7 +137,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         _LOGGER.warning("bjp_label.print_customer is reserved for Phase 2")
 
     hass.services.async_register(
-        DOMAIN, SERVICE_PRINT_LABEL, async_print_label, schema=PRINT_LABEL_SCHEMA
+        DOMAIN,
+        SERVICE_PRINT_LABEL,
+        async_print_label,
+        schema=PRINT_LABEL_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SAVE_CUSTOMER, async_save_customer, schema=SAVE_CUSTOMER_SCHEMA

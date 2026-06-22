@@ -16,7 +16,8 @@ async def async_print_niimbot(
     preview: bool,
     device_id: str,
     context: Any,
-) -> None:
+    return_response: bool = False,
+) -> dict | None:
     """Send a rendered label through the existing hass-niimbot service."""
     service_data = {
         "payload": payload,
@@ -28,11 +29,12 @@ async def async_print_niimbot(
     if preview:
         service_data["preview"] = True
 
-    await hass.services.async_call(
+    return await hass.services.async_call(
         "niimbot",
         "print",
         service_data=service_data,
         target={"device_id": device_id},
         blocking=True,
         context=context,
+        return_response=return_response,
     )

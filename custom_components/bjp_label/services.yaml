@@ -1,6 +1,6 @@
 print_label:
   name: Print customer label
-  description: Parse pasted Thai customer text and print it through hass-niimbot.
+  description: Parse Thai customer text, preview it, or print it through hass-niimbot. Preview calls can return an image data URL.
   fields:
     text:
       name: Customer text
@@ -88,7 +88,7 @@ print_label:
             - "270"
     preview:
       name: Preview only
-      description: Generate the label image without printing.
+      description: Generate the label image without printing; request a service response to receive the image data URL.
       required: false
       default: false
       selector:

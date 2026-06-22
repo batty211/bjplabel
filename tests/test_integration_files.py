@@ -48,6 +48,7 @@ class IntegrationPackageTests(unittest.TestCase):
         integration_source = (_INTEGRATION / "__init__.py").read_text(encoding="utf-8")
         printer_source = (_INTEGRATION / "printer.py").read_text(encoding="utf-8")
         self.assertIn("async_print_niimbot", integration_source)
+        self.assertIn("SupportsResponse.OPTIONAL", integration_source)
         self.assertIn('"niimbot"', printer_source)
         self.assertIn('"print"', printer_source)
 

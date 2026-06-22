@@ -20,13 +20,15 @@ Required field:
 
 Buttons:
 
-- Print
+- Print (enabled only after a successful preview)
 - Clear
 
 Phase 1 behavior:
 
 - The card detects and highlights the name, phone, address, and postal code.
 - Printing is disabled when a name or phone cannot be detected.
+- A no-print preview is generated automatically and shown before real printing.
+- Editing the label invalidates the preview and disables real printing again.
 - Clear resets the form.
 
 ### Printing
@@ -89,7 +91,6 @@ Capabilities:
 ## Phase 3
 
 - Multiple templates.
-- Label preview before printing.
 - Export/import data.
 - Print statistics.
 - Recent customer list.
@@ -101,4 +102,4 @@ Capabilities:
 - The integration exposes `bjp_label.print_label`.
 - `bjp_label.print_label` calls `niimbot.print`.
 - Thai name, phone, and address render with a Thai font and do not become square glyphs.
-- The first usable workflow is: open dashboard, paste customer text, check the detected fields, tap Print, and the label prints on Niimbot B1.
+- The first usable workflow is: open dashboard, paste customer text, inspect the automatic preview, tap `พิมพ์จริง`, and the label prints on Niimbot B1.

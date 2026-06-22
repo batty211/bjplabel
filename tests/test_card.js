@@ -32,7 +32,7 @@ card.config = {
   height: 384,
   density: 3,
   rotate: 90,
-  preview: true,
+  preview: false,
 };
 
 const parsed = card.parseText(
@@ -103,6 +103,7 @@ assert.equal(serviceData.postal_code, "10110");
 assert.equal(serviceData.width, 640);
 assert.equal(serviceData.height, 384);
 assert.equal(serviceData.rotate, 90);
+assert.equal(serviceData.preview, false);
 assert.equal("text" in serviceData, false);
 
 const withoutPostal = card.parseFormattedText(
@@ -124,24 +125,37 @@ assert.equal(
   false,
 );
 
-async function testPrintLock() {
-  let calls = 0;
+async function testPreviewThenPrint() {
+  const calls = [];
   let finishPrint;
   const printCard = new Card();
-  printCard.config = card.config;
+  printCard.config = { ...card.config, preview: false };
   printCard.formatted = card.parseFormattedText(
     "ส่ง สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
   );
   printCard.updateForm = () => {};
   printCard._hass = {
-    callService: () => {
-      calls += 1;
+    callService: (...args) => {
+      calls.push(args);
+      if (args[2].preview) return Promise.resolve({ image: "data:image/png;base64,PREVIEW" });
       return new Promise((resolve) => { finishPrint = resolve; });
     },
   };
+
+  await printCard.handleAction("print");
+  assert.equal(calls.length, 0);
+  await printCard.generatePreview();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][2].preview, true);
+  assert.equal(calls[0][5], true);
+  assert.equal(printCard.previewImage, "data:image/png;base64,PREVIEW");
+  assert.equal(printCard.previewSnapshot.preview, false);
+
   const firstPrint = printCard.handleAction("print");
   const duplicatePrint = printCard.handleAction("print");
-  assert.equal(calls, 1);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1][2], printCard.previewSnapshot);
+  assert.equal(calls[1][2].preview, false);
   assert.equal(printCard.isPrinting, true);
   await duplicatePrint;
   finishPrint();
@@ -150,12 +164,12 @@ async function testPrintLock() {
   assert.equal(printCard.printLocked, true);
 
   await printCard.handleAction("print");
-  assert.equal(calls, 1);
+  assert.equal(calls.length, 2);
   printCard.resetPrintState();
   assert.equal(printCard.printLocked, false);
 
-  printCard._hass.callService = async () => {
-    calls += 1;
+  printCard._hass.callService = async (...args) => {
+    calls.push(args);
     throw new Error("printer unavailable");
   };
   await printCard.handleAction("print");
@@ -164,8 +178,110 @@ async function testPrintLock() {
   assert.equal(printCard.isPrinting, false);
 }
 
+async function testPreviewFailureRetryAndStaleResponse() {
+  const previewCard = new Card();
+  previewCard.config = { ...card.config, preview: false };
+  previewCard.formatted = card.parseFormattedText(
+    "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
+  );
+  previewCard.updateForm = () => {};
+  previewCard._hass = { callService: async () => { throw new Error("preview unavailable"); } };
+
+  await previewCard.generatePreview();
+  assert.equal(previewCard.previewError, true);
+  assert.equal(previewCard.previewSnapshot, null);
+
+  previewCard._hass.callService = async () => ({ image: "data:image/png;base64,RETRY" });
+  await previewCard.handleAction("retry-preview");
+  assert.equal(previewCard.previewError, false);
+  assert.equal(previewCard.previewImage, "data:image/png;base64,RETRY");
+
+  let finishStalePreview;
+  previewCard.invalidatePreview();
+  previewCard._hass.callService = () => new Promise((resolve) => { finishStalePreview = resolve; });
+  const stalePreview = previewCard.generatePreview();
+  previewCard.invalidatePreview();
+  finishStalePreview({ image: "data:image/png;base64,STALE" });
+  await stalePreview;
+  assert.equal(previewCard.previewImage, "");
+  assert.equal(previewCard.previewSnapshot, null);
+}
+
+async function testAutomaticAndPreviewOnlyModes() {
+  let calls = 0;
+  const autoCard = new Card();
+  autoCard.config = { ...card.config, preview: false };
+  autoCard.formatted = card.parseFormattedText(
+    "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
+  );
+  autoCard.updateForm = () => {};
+  autoCard._hass = {
+    callService: async () => {
+      calls += 1;
+      return { image: "data:image/png;base64,AUTO" };
+    },
+  };
+  autoCard.schedulePreview(0);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls, 1);
+  assert.ok(autoCard.previewSnapshot);
+
+  autoCard.config.preview = true;
+  await autoCard.handleAction("print");
+  assert.equal(calls, 1);
+
+  autoCard.invalidatePreview();
+  autoCard.formatted = card.parseFormattedText("ข้อมูลไม่ครบ");
+  autoCard.schedulePreview(0);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls, 1);
+}
+
+function testPreviewImageIsRendered() {
+  const uiCard = new Card();
+  uiCard.config = { ...card.config, preview: false };
+  uiCard.formatted = card.parseFormattedText(
+    "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
+  );
+  uiCard.parseWarning = "";
+  uiCard.previewImage = "data:image/png;base64,DISPLAY";
+  uiCard.previewSnapshot = { preview: false };
+  uiCard.status = "";
+  uiCard.statusType = "done";
+  uiCard.isPreviewing = false;
+  uiCard.isPrinting = false;
+  uiCard.printLocked = false;
+  uiCard.previewError = false;
+
+  const nodes = new Map();
+  const node = () => ({ hidden: false, disabled: false, textContent: "", dataset: {}, removeAttribute(name) { delete this[name]; } });
+  [
+    "[data-warning]",
+    "#customer-text",
+    "#formatted-text",
+    '[data-action="print"]',
+    "[data-preview]",
+    "[data-preview-image]",
+    "[data-preview-placeholder]",
+    '[data-action="retry-preview"]',
+    ".status",
+  ].forEach((selector) => nodes.set(selector, node()));
+  uiCard.querySelector = (selector) => nodes.get(selector);
+
+  uiCard.updateForm();
+  assert.equal(nodes.get("[data-preview]").hidden, false);
+  assert.equal(nodes.get("[data-preview-image]").hidden, false);
+  assert.equal(nodes.get("[data-preview-image]").src, uiCard.previewImage);
+  assert.equal(nodes.get('[data-action="print"]').disabled, false);
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/manifest.json")));
 const cardSource = fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/frontend/bjp-label-card.js"), "utf8");
 assert.match(cardSource, new RegExp(`BJP_LABEL_VERSION = ["']${manifest.version}["']`));
 
-testPrintLock().then(() => console.log("card tests passed"));
+Promise.resolve()
+  .then(testPreviewThenPrint)
+  .then(testPreviewFailureRetryAndStaleResponse)
+  .then(testAutomaticAndPreviewOnlyModes)
+  .then(testPreviewImageIsRendered)
+  .then(() => console.log("card tests passed"));

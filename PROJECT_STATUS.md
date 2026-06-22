@@ -23,6 +23,8 @@ Last updated: 2026-06-22
 - Added organization-name fallback and balanced address output of up to three lines.
 - Removed the automatic `ส่ง` prefix from preview and printed labels.
 - Isolated the Niimbot service call behind an internal printer backend boundary.
+- Added automatic no-print previews and disabled real printing until the current preview succeeds.
+- Added preview image service responses, stale-response protection, retry, and preview-only mode.
 - Updated setup and service examples for the new workflow.
 
 ## Verification
@@ -42,7 +44,7 @@ Last updated: 2026-06-22
 ## Next Work
 
 - Test Config Flow and service registration after a Home Assistant restart.
-- Call `bjp_label.print_label` with `preview: true` and inspect the last-label image entity.
+- Verify automatic preview responses and the displayed image on the target dashboard.
 - Confirm the 640 x 384 pre-rotation layout on the actual Niimbot B1 50 x 80 mm labels.
 - Confirm the configured Thai font renders without missing glyphs.
 - Test a physical print after the preview layout is correct.

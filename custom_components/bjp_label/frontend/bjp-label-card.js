@@ -1,5 +1,6 @@
-const BJP_LABEL_VERSION = "0.3.1";
+const BJP_LABEL_VERSION = "0.3.2";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
+const BJP_LABEL_PREVIEW_DELAY = 800;
 
 class BjpLabelCard extends HTMLElement {
   static getConfigElement() {
@@ -26,6 +27,12 @@ class BjpLabelCard extends HTMLElement {
     this.statusType = "ready";
     this.isPrinting = false;
     this.printLocked = false;
+    this.isPreviewing = false;
+    this.previewImage = "";
+    this.previewSnapshot = null;
+    this.previewError = false;
+    this.previewRevision = 0;
+    this.previewTimer = undefined;
     this.parsed = this.parseText("");
     this.formatted = this.parseFormattedText("");
     this.parseWarning = "";
@@ -35,6 +42,15 @@ class BjpLabelCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (
+      this.formatted?.valid &&
+      !this.previewImage &&
+      !this.isPreviewing &&
+      !this.previewError &&
+      this.previewTimer === undefined
+    ) {
+      this.schedulePreview();
+    }
   }
 
   getCardSize() {
@@ -58,8 +74,17 @@ class BjpLabelCard extends HTMLElement {
             <div class="warning" data-warning aria-live="polite"></div>
           </div>
 
+          <section class="preview" data-preview hidden>
+            <h3>ตัวอย่างฉลากก่อนพิมพ์</h3>
+            <div class="preview-frame">
+              <img data-preview-image alt="ตัวอย่างฉลากที่จะพิมพ์" hidden>
+              <p data-preview-placeholder></p>
+            </div>
+            <button class="secondary retry" data-action="retry-preview" hidden>ลองสร้างตัวอย่างอีกครั้ง</button>
+          </section>
+
           <div class="actions">
-            <button class="primary" data-action="print">พิมพ์</button>
+            <button class="primary" data-action="print">พิมพ์จริง</button>
             <button class="secondary" data-action="clear">ล้างข้อมูล</button>
           </div>
           <p class="status" aria-live="polite"></p>
@@ -112,6 +137,49 @@ class BjpLabelCard extends HTMLElement {
           font-size: 18px;
           font-weight: 700;
           line-height: 1.4;
+        }
+        .preview {
+          margin-top: 18px;
+        }
+        .preview[hidden] {
+          display: none;
+        }
+        .preview h3 {
+          margin: 0 0 10px;
+          font-size: 21px;
+        }
+        .preview-frame {
+          display: flex;
+          min-height: 150px;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border: 2px solid var(--divider-color);
+          border-radius: 10px;
+          background: #fff;
+        }
+        .preview-frame img {
+          display: block;
+          width: 100%;
+          height: auto;
+          max-height: 360px;
+          object-fit: contain;
+        }
+        .preview-frame img[hidden] {
+          display: none;
+        }
+        .preview-frame p {
+          margin: 20px;
+          color: var(--secondary-text-color);
+          font-size: 18px;
+          text-align: center;
+        }
+        .retry {
+          width: 100%;
+          margin-top: 12px;
+        }
+        .retry[hidden] {
+          display: none;
         }
         .actions {
           display: grid;
@@ -166,6 +234,7 @@ class BjpLabelCard extends HTMLElement {
     this.querySelector("#customer-text").addEventListener("input", (event) => {
       this.text = event.target.value;
       this.resetPrintState();
+      this.invalidatePreview();
       this.parsed = this.parseText(this.text);
       this.parseWarning = this.parsed.message;
       this.formattedText = this.formatParsed(this.parsed);
@@ -173,14 +242,17 @@ class BjpLabelCard extends HTMLElement {
       this.formatted = this.parseFormattedText(this.formattedText);
       this.querySelector("#formatted-text").value = this.formattedText;
       this.updateForm();
+      this.schedulePreview();
     });
     this.querySelector("#formatted-text").addEventListener("input", (event) => {
       this.formattedText = event.target.value;
       this.formattedEdited = true;
       this.resetPrintState();
+      this.invalidatePreview();
       this.parseWarning = "";
       this.formatted = this.parseFormattedText(this.formattedText);
       this.updateForm();
+      this.schedulePreview();
     });
     this.querySelectorAll("button").forEach((button) => {
       button.addEventListener("click", () => this.handleAction(button.dataset.action));
@@ -190,16 +262,40 @@ class BjpLabelCard extends HTMLElement {
 
   updateForm() {
     this.querySelector("[data-warning]").textContent = this.parseWarning || this.formatted.message;
+    this.querySelector("#customer-text").disabled = this.isPrinting;
+    this.querySelector("#formatted-text").disabled = this.isPrinting;
     const printButton = this.querySelector('[data-action="print"]');
-    printButton.disabled = !this.formatted.valid || this.isPrinting || this.printLocked;
-    printButton.textContent = this.isPrinting ? "กำลังพิมพ์..." : this.printLocked ? "พิมพ์แล้ว" : "พิมพ์";
+    printButton.disabled = !this.previewSnapshot || this.isPreviewing || this.isPrinting || this.printLocked || Boolean(this.config.preview);
+    printButton.textContent = this.isPrinting
+      ? "กำลังพิมพ์..."
+      : this.printLocked
+        ? "พิมพ์แล้ว"
+        : this.config.preview
+          ? "โหมดดูตัวอย่างเท่านั้น"
+          : "พิมพ์จริง";
+    const preview = this.querySelector("[data-preview]");
+    const previewImage = this.querySelector("[data-preview-image]");
+    const placeholder = this.querySelector("[data-preview-placeholder]");
+    const retryButton = this.querySelector('[data-action="retry-preview"]');
+    preview.hidden = !this.formatted.valid && !this.isPreviewing && !this.previewError;
+    previewImage.hidden = !this.previewImage;
+    if (this.previewImage) previewImage.src = this.previewImage;
+    else previewImage.removeAttribute("src");
+    placeholder.hidden = Boolean(this.previewImage);
+    placeholder.textContent = this.isPreviewing
+      ? "กำลังสร้างตัวอย่าง..."
+      : this.previewError
+        ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง"
+        : "รอสร้างตัวอย่างฉลาก";
+    retryButton.hidden = !this.previewError || this.isPreviewing;
     const status = this.querySelector(".status");
-    status.textContent = this.status || (this.formatted.valid ? "พร้อมพิมพ์" : "รอข้อมูล");
+    status.textContent = this.status || (this.formatted.valid ? "กำลังเตรียมตัวอย่างก่อนพิมพ์" : "รอข้อมูล");
     status.dataset.type = this.statusType;
   }
 
   async handleAction(action) {
     if (action === "clear") {
+      this.invalidatePreview();
       this.text = "";
       this.formattedText = "";
       this.formattedEdited = false;
@@ -213,7 +309,11 @@ class BjpLabelCard extends HTMLElement {
       this.render();
       return;
     }
-    if (!this.formatted.valid || !this._hass || this.isPrinting || this.printLocked) return;
+    if (action === "retry-preview") {
+      await this.generatePreview(this.previewRevision);
+      return;
+    }
+    if (action !== "print" || !this.previewSnapshot || !this._hass || this.isPrinting || this.printLocked || this.config.preview) return;
 
     this.isPrinting = true;
     this.status = "กำลังเชื่อมต่อเครื่องพิมพ์...";
@@ -223,7 +323,7 @@ class BjpLabelCard extends HTMLElement {
       if (typeof requestAnimationFrame === "function") {
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
-      const printRequest = this._hass.callService("bjp_label", "print_label", this.serviceData());
+      const printRequest = this._hass.callService("bjp_label", "print_label", { ...this.previewSnapshot });
       this.status = "กำลังพิมพ์...";
       this.updateForm();
       await printRequest;
@@ -246,6 +346,70 @@ class BjpLabelCard extends HTMLElement {
     this.printLocked = false;
   }
 
+  invalidatePreview() {
+    if (this.previewTimer !== undefined) clearTimeout(this.previewTimer);
+    this.previewTimer = undefined;
+    this.previewRevision = Number(this.previewRevision || 0) + 1;
+    this.isPreviewing = false;
+    this.previewImage = "";
+    this.previewSnapshot = null;
+    this.previewError = false;
+  }
+
+  schedulePreview(delay = BJP_LABEL_PREVIEW_DELAY) {
+    if (this.previewTimer !== undefined) clearTimeout(this.previewTimer);
+    this.previewTimer = undefined;
+    if (!this.formatted?.valid || !this._hass) return;
+    const revision = this.previewRevision;
+    this.previewTimer = setTimeout(() => {
+      this.previewTimer = undefined;
+      this.generatePreview(revision);
+    }, delay);
+  }
+
+  async generatePreview(revision = this.previewRevision) {
+    if (!this.formatted?.valid || !this._hass || revision !== this.previewRevision || this.isPreviewing || this.isPrinting) return;
+    const previewData = this.serviceData(true);
+    this.isPreviewing = true;
+    this.previewError = false;
+    this.status = "กำลังสร้างตัวอย่างโดยไม่ใช้กระดาษ...";
+    this.statusType = "printing";
+    this.updateForm();
+    try {
+      const response = await this._hass.callService(
+        "bjp_label",
+        "print_label",
+        previewData,
+        undefined,
+        true,
+        true,
+      );
+      if (revision !== this.previewRevision) return;
+      const image = response?.image || response?.response?.image;
+      if (typeof image !== "string" || !image.startsWith("data:image/")) {
+        throw new Error("ไม่ได้รับภาพตัวอย่างจากระบบพิมพ์");
+      }
+      this.previewImage = image;
+      this.previewSnapshot = { ...previewData, preview: false };
+      this.status = this.config.preview
+        ? "ตัวอย่างพร้อมแล้ว (โหมดดูตัวอย่างเท่านั้น)"
+        : "ตัวอย่างพร้อมแล้ว กรุณาตรวจสอบก่อนพิมพ์จริง";
+      this.statusType = "done";
+    } catch (error) {
+      if (revision !== this.previewRevision) return;
+      this.previewImage = "";
+      this.previewSnapshot = null;
+      this.previewError = true;
+      this.status = `สร้างตัวอย่างไม่สำเร็จ: ${this.friendlyError(error)}`;
+      this.statusType = "error";
+    } finally {
+      if (revision === this.previewRevision) {
+        this.isPreviewing = false;
+        this.updateForm();
+      }
+    }
+  }
+
   async loadPostcodes() {
     if (BjpLabelCard.postcodeRows) return;
     try {
@@ -257,11 +421,13 @@ class BjpLabelCard extends HTMLElement {
       }
       BjpLabelCard.postcodeRows = await BjpLabelCard.postcodePromise;
       if (this.text && !this.formattedEdited) {
+        this.invalidatePreview();
         this.parsed = this.parseText(this.text);
         this.parseWarning = this.parsed.message;
         this.formattedText = this.formatParsed(this.parsed);
         this.formatted = this.parseFormattedText(this.formattedText);
         this.render();
+        this.schedulePreview();
       }
     } catch (error) {
       BjpLabelCard.postcodePromise = undefined;
@@ -269,7 +435,7 @@ class BjpLabelCard extends HTMLElement {
     }
   }
 
-  serviceData() {
+  serviceData(preview = false) {
     const data = {
       name: this.formatted.name,
       phone: this.formatted.phone,
@@ -279,7 +445,7 @@ class BjpLabelCard extends HTMLElement {
       height: Number(this.config.height),
       density: Number(this.config.density),
       rotate: Number(this.config.rotate),
-      preview: Boolean(this.config.preview),
+      preview: Boolean(preview),
     };
     if (this.config.device_id) data.device_id = this.config.device_id;
     if (this.config.font) data.font = this.config.font;

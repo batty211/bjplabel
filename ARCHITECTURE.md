@@ -28,14 +28,16 @@ in the dashboard card picker without a manually configured Resource.
 
 Responsibilities:
 
-- Render one Thai customer text input and a detected-data preview.
+- Render Thai customer inputs and the generated no-print label image.
+- Require a successful preview of the current data before enabling real printing.
 - Provide large touch-friendly inputs and buttons.
 - Call Home Assistant services through the normal dashboard connection.
 - Avoid admin-only pages during routine use.
 
 Phase 1 service calls:
 
-- `bjp_label.print_label` for Print.
+- `bjp_label.print_label` with `preview: true` and a response for Preview.
+- `bjp_label.print_label` with `preview: false` for real printing.
 
 Phase 2 service calls:
 
@@ -66,6 +68,10 @@ by the Lovelace card. Rendering and the internal printer backend are kept separa
 so a future XP-420B backend can be added after selecting its Home Assistant print
 integration without changing the normal card workflow. Phase 1 continues to use
 only `niimbot.print`.
+
+`bjp_label.print_label` supports an optional service response. Preview calls return
+`{"image": "data:image/..."}` from `hass-niimbot`; the card displays that data URL
+directly and does not require a separate camera or image entity.
 
 ## Printing
 

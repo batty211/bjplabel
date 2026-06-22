@@ -62,8 +62,12 @@ The `hass-niimbot` integration supports referencing custom fonts placed in `www/
 1. Open the Home Assistant dashboard.
 2. Paste the customer's name, phone number, and address into the single text box.
 3. Check the detected name, formatted phone number, address, and postal code.
-4. Tap `พิมพ์`.
-5. The 50 x 80 mm label prints on the Niimbot B1.
+4. Wait for the automatic no-print preview and inspect the label image.
+5. Tap `พิมพ์จริง` only after the preview is correct.
+6. The 50 x 80 mm label prints on the Niimbot B1.
+
+The Print button stays disabled until the current data has a successful preview.
+Editing either text box invalidates the old preview and generates a new one.
 
 ## Current Status
 
