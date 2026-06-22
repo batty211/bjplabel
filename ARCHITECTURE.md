@@ -24,7 +24,7 @@ The frontend is a Lovelace custom card loaded from:
 
 Responsibilities:
 
-- Render Thai customer form.
+- Render one Thai customer text input and a detected-data preview.
 - Provide large touch-friendly inputs and buttons.
 - Call Home Assistant services through the normal dashboard connection.
 - Avoid admin-only pages during routine use.
@@ -32,7 +32,6 @@ Responsibilities:
 Phase 1 service calls:
 
 - `bjp_label.print_label` for Print.
-- `bjp_label.print_label` for Save and print until persistence exists.
 
 Phase 2 service calls:
 
@@ -67,14 +66,14 @@ action: niimbot.print
 data:
   payload:
     - type: text
-      value: Customer Name
+      value: ส่ง Customer Name
       font: NotoSansThai-Regular.ttf
       x: 24
       y: 20
       size: 34
   width: 400
-  height: 240
-  rotate: 0
+  height: 640
+  rotate: 90
 target:
   device_id: <niimbot device id>
 ```
@@ -82,9 +81,9 @@ target:
 Recommended first layout for Niimbot B1:
 
 - Label width: `400`
-- Label height: `240`
+- Label height: `640`
 - Density: `3`
-- Rotation: `0`
+- Rotation: `90`
 - Font: `NotoSansThai-Regular.ttf`
 
 These are tuning defaults, not protocol assumptions.

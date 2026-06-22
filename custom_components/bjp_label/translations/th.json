@@ -1,0 +1,21 @@
+{
+  "title": "BJP Label",
+  "config": {
+    "step": {
+      "user": {
+        "title": "ตั้งค่า BJP Label",
+        "description": "เลือกเครื่องพิมพ์ Niimbot และฟอนต์ภาษาไทยสำหรับฉลากลูกค้า",
+        "data": {
+          "device_id": "เครื่องพิมพ์ Niimbot",
+          "font": "ชื่อไฟล์ฟอนต์ภาษาไทย"
+        },
+        "data_description": {
+          "font": "ตัวอย่าง: NotoSansThai-Regular.ttf"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "ตั้งค่า BJP Label ไว้แล้ว"
+    }
+  }
+}

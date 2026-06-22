@@ -1,8 +1,2 @@
 type: custom:bjp-label-card
 title: พิมพ์ฉลากลูกค้า
-device_id: replace_with_niimbot_device_id
-font: NotoSansThai-Regular.ttf
-width: 400
-height: 240
-density: 3
-rotate: 0

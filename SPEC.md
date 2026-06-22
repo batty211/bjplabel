@@ -14,27 +14,19 @@ Build an internal Home Assistant tool for managing customer label data and print
 
 ### Customer Form
 
-Required fields:
+Required field:
 
-- Customer name
-- Phone number
-- Address
-
-Optional field:
-
-- Note
+- One multiline text box containing pasted customer details
 
 Buttons:
 
-- Save
 - Print
-- Save and print
 - Clear
 
 Phase 1 behavior:
 
-- Print and Save and print both call the BJP Label print service.
-- Save can validate the form and show that persistence is not available until Phase 2.
+- The card detects and highlights the name, phone, address, and postal code.
+- Printing is disabled when a name or phone cannot be detected.
 - Clear resets the form.
 
 ### Printing
@@ -49,12 +41,13 @@ Integration:
 - Call `niimbot.print` directly from the BJP Label custom integration.
 - Do not implement Bluetooth, raster, or printer protocol code.
 
-Label v1:
+Label v1 for 50 x 80 mm paper:
 
-- Line 1: customer name
-- Line 2: phone number
-- Lines 3-4: address
-- Note is stored for future use but not printed in v1.
+- Prominent recipient name prefixed with `ส่ง`
+- Formatted Thai phone number
+- Auto-fitted address
+- Prominent postal code when detected
+- Default canvas `400 x 640` pixels with rotation `90`
 
 Thai support:
 
@@ -108,4 +101,4 @@ Capabilities:
 - The integration exposes `bjp_label.print_label`.
 - `bjp_label.print_label` calls `niimbot.print`.
 - Thai name, phone, and address render with a Thai font and do not become square glyphs.
-- The first usable workflow is: open dashboard, fill name/phone/address, tap Save and print, label prints on Niimbot B1.
+- The first usable workflow is: open dashboard, paste customer text, check the detected fields, tap Print, and the label prints on Niimbot B1.

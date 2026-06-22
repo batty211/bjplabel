@@ -1,29 +1,39 @@
 print_label:
   name: Print customer label
-  description: Print a Thai customer label through the existing hass-niimbot service.
-  target:
-    device:
-      integration: niimbot
+  description: Parse pasted Thai customer text and print it through hass-niimbot.
   fields:
+    text:
+      name: Customer text
+      description: Paste the customer name, phone number, and address in any line order.
+      required: false
+      selector:
+        text:
+          multiline: true
     name:
       name: Customer name
       description: Customer name printed on line 1.
-      required: true
+      required: false
       selector:
         text:
     phone:
       name: Phone number
       description: Phone number printed on line 2.
-      required: true
+      required: false
       selector:
         text:
     address:
       name: Address
       description: Address printed on lines 3 and 4.
-      required: true
+      required: false
       selector:
         text:
           multiline: true
+    postal_code:
+      name: Postal code
+      description: Optional postal code for legacy structured service calls.
+      required: false
+      selector:
+        text:
     note:
       name: Note
       description: Optional note for future persistence. It is not printed in label v1.
@@ -50,7 +60,7 @@ print_label:
     height:
       name: Label height
       required: false
-      default: 240
+      default: 640
       selector:
         number:
           min: 10
@@ -68,7 +78,7 @@ print_label:
     rotate:
       name: Rotation
       required: false
-      default: 0
+      default: 90
       selector:
         select:
           options:
@@ -85,7 +95,7 @@ print_label:
         boolean:
     device_id:
       name: Niimbot device id
-      description: Optional Niimbot device id. Use this when calling the service from the BJP Label card.
+      description: Optional override for the printer selected during BJP Label setup.
       required: false
       selector:
         text:

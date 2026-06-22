@@ -1,14 +1,19 @@
+"""BJP Label integration."""
+
 from __future__ import annotations
 
 import logging
-from textwrap import wrap
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
+    CONF_DEVICE_ID,
+    CONF_FONT,
     DEFAULT_DENSITY,
     DEFAULT_FONT,
     DEFAULT_HEIGHT,
@@ -20,20 +25,31 @@ from .const import (
     SERVICE_SAVE_CUSTOMER,
     SERVICE_SEARCH_CUSTOMERS,
 )
+from .parser import ParseError, ParsedLabel, parse_customer_text
 
 _LOGGER = logging.getLogger(__name__)
 
 PRINT_LABEL_SCHEMA = vol.Schema(
     {
-        vol.Required("name"): cv.string,
-        vol.Required("phone"): cv.string,
-        vol.Required("address"): cv.string,
+        vol.Optional("text"): cv.string,
+        vol.Optional("name"): cv.string,
+        vol.Optional("phone"): cv.string,
+        vol.Optional("address", default=""): cv.string,
         vol.Optional("note", default=""): cv.string,
-        vol.Optional("font", default=DEFAULT_FONT): cv.string,
-        vol.Optional("width", default=DEFAULT_WIDTH): vol.Coerce(int),
-        vol.Optional("height", default=DEFAULT_HEIGHT): vol.Coerce(int),
-        vol.Optional("density", default=DEFAULT_DENSITY): vol.All(vol.Coerce(int), vol.Range(min=1, max=5)),
-        vol.Optional("rotate", default=DEFAULT_ROTATE): vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270])),
+        vol.Optional("postal_code", default=""): cv.string,
+        vol.Optional("font"): cv.string,
+        vol.Optional("width", default=DEFAULT_WIDTH): vol.All(
+            vol.Coerce(int), vol.Range(min=10, max=1600)
+        ),
+        vol.Optional("height", default=DEFAULT_HEIGHT): vol.All(
+            vol.Coerce(int), vol.Range(min=10, max=1600)
+        ),
+        vol.Optional("density", default=DEFAULT_DENSITY): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=5)
+        ),
+        vol.Optional("rotate", default=DEFAULT_ROTATE): vol.All(
+            vol.Coerce(int), vol.In([0, 90, 180, 270])
+        ),
         vol.Optional("preview", default=False): cv.boolean,
         vol.Optional("device_id"): cv.string,
     }
@@ -47,23 +63,31 @@ SAVE_CUSTOMER_SCHEMA = vol.Schema(
         vol.Optional("note", default=""): cv.string,
     }
 )
-
 SEARCH_CUSTOMERS_SCHEMA = vol.Schema({vol.Required("query"): cv.string})
-
 PRINT_CUSTOMER_SCHEMA = vol.Schema({vol.Required("customer_id"): vol.Coerce(int)})
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Initialize shared integration data and register services."""
+    hass.data.setdefault(DOMAIN, {})
+
     async def async_print_label(call: ServiceCall) -> None:
         data = call.data
-        payload = _build_label_payload(
-            name=data["name"],
-            phone=data["phone"],
-            address=data["address"],
-            font=data["font"],
+        parsed = _parse_service_data(data)
+        settings = next(iter(hass.data[DOMAIN].values()), {})
+        font = data.get("font") or settings.get(CONF_FONT, DEFAULT_FONT)
+        call_target = getattr(call, "target", None) or {}
+        target_device = call_target.get("device_id") if isinstance(call_target, dict) else None
+        if isinstance(target_device, list):
+            target_device = target_device[0] if target_device else None
+        device_id = (
+            data.get("device_id") or target_device or settings.get(CONF_DEVICE_ID)
         )
+        if not device_id:
+            raise ServiceValidationError("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Niimbot")
+
         service_data = {
-            "payload": payload,
+            "payload": _build_label_payload(parsed, font),
             "width": data["width"],
             "height": data["height"],
             "density": data["density"],
@@ -72,37 +96,29 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         if data["preview"]:
             service_data["preview"] = True
 
-        target = {"device_id": data["device_id"]} if data.get("device_id") else getattr(call, "target", None)
-
         await hass.services.async_call(
             "niimbot",
             "print",
             service_data=service_data,
-            target=target,
+            target={"device_id": device_id},
             blocking=True,
             context=call.context,
         )
 
     async def async_save_customer(call: ServiceCall) -> None:
-        _LOGGER.warning("bjp_label.save_customer is reserved for Phase 2 and does not persist data yet")
+        _LOGGER.warning("bjp_label.save_customer is reserved for Phase 2")
 
     async def async_search_customers(call: ServiceCall) -> None:
-        _LOGGER.warning("bjp_label.search_customers is reserved for Phase 2 and does not search data yet")
+        _LOGGER.warning("bjp_label.search_customers is reserved for Phase 2")
 
     async def async_print_customer(call: ServiceCall) -> None:
-        _LOGGER.warning("bjp_label.print_customer is reserved for Phase 2 and does not load customers yet")
+        _LOGGER.warning("bjp_label.print_customer is reserved for Phase 2")
 
     hass.services.async_register(
-        DOMAIN,
-        SERVICE_PRINT_LABEL,
-        async_print_label,
-        schema=PRINT_LABEL_SCHEMA,
+        DOMAIN, SERVICE_PRINT_LABEL, async_print_label, schema=PRINT_LABEL_SCHEMA
     )
     hass.services.async_register(
-        DOMAIN,
-        SERVICE_SAVE_CUSTOMER,
-        async_save_customer,
-        schema=SAVE_CUSTOMER_SCHEMA,
+        DOMAIN, SERVICE_SAVE_CUSTOMER, async_save_customer, schema=SAVE_CUSTOMER_SCHEMA
     )
     hass.services.async_register(
         DOMAIN,
@@ -119,50 +135,83 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     return True
 
 
-def _build_label_payload(name: str, phone: str, address: str, font: str) -> list[dict]:
-    address_lines = _address_lines(address)
-    return [
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Store the printer settings selected in the config entry."""
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = dict(entry.data)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload BJP Label printer settings."""
+    hass.data[DOMAIN].pop(entry.entry_id, None)
+    return True
+
+
+def _parse_service_data(data: dict) -> ParsedLabel:
+    if data.get("text", "").strip():
+        try:
+            return parse_customer_text(data["text"])
+        except ParseError as err:
+            raise ServiceValidationError(str(err)) from err
+
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    if not name or not phone:
+        raise ServiceValidationError("กรุณาระบุ text หรือ name และ phone")
+    return ParsedLabel(
+        name=name,
+        phone=phone,
+        address=data.get("address", "").strip(),
+        postal_code=data.get("postal_code", "").strip(),
+    )
+
+
+def _build_label_payload(parsed: ParsedLabel, font: str) -> list[dict]:
+    payload = [
         {
-            "type": "text",
-            "value": name.strip(),
+            "type": "new_multiline",
+            "value": f"ส่ง {parsed.name}",
             "font": font,
-            "x": 24,
+            "x": 20,
             "y": 18,
-            "size": 34,
+            "size": 48,
+            "width": 360,
+            "height": 92,
+            "fit": True,
         },
         {
             "type": "text",
-            "value": phone.strip(),
+            "value": parsed.phone,
             "font": font,
-            "x": 24,
-            "y": 64,
-            "size": 28,
-        },
-        {
-            "type": "text",
-            "value": address_lines[0],
-            "font": font,
-            "x": 24,
-            "y": 106,
-            "size": 22,
-        },
-        {
-            "type": "text",
-            "value": address_lines[1],
-            "font": font,
-            "x": 24,
-            "y": 142,
-            "size": 22,
+            "x": 20,
+            "y": 122,
+            "size": 42,
         },
     ]
-
-
-def _address_lines(address: str) -> list[str]:
-    clean_address = " ".join(address.split())
-    if not clean_address:
-        return ["", ""]
-
-    wrapped = wrap(clean_address, width=34, break_long_words=False, break_on_hyphens=False)
-    if len(wrapped) == 1:
-        return [wrapped[0], ""]
-    return [wrapped[0], " ".join(wrapped[1:])]
+    if parsed.address:
+        payload.append(
+            {
+                "type": "new_multiline",
+                "value": parsed.address,
+                "font": font,
+                "x": 20,
+                "y": 194,
+                "size": 38,
+                "spacing": 44,
+                "width": 360,
+                "height": 286 if parsed.postal_code else 400,
+                "fit": True,
+            }
+        )
+    if parsed.postal_code:
+        payload.append(
+            {
+                "type": "text",
+                "value": parsed.postal_code,
+                "font": font,
+                "x": 20,
+                "y": 530,
+                "size": 58,
+            }
+        )
+    return payload

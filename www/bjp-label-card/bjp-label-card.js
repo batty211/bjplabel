@@ -4,33 +4,21 @@ class BjpLabelCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return {
-      title: "พิมพ์ฉลากลูกค้า",
-      font: "NotoSansThai-Regular.ttf",
-      width: 400,
-      height: 240,
-      density: 3,
-      rotate: 0,
-    };
+    return { title: "พิมพ์ฉลากลูกค้า" };
   }
 
   setConfig(config) {
     this.config = {
       title: "พิมพ์ฉลากลูกค้า",
-      font: "NotoSansThai-Regular.ttf",
       width: 400,
-      height: 240,
+      height: 640,
       density: 3,
-      rotate: 0,
+      rotate: 90,
       ...config,
     };
-    this.form = {
-      name: "",
-      phone: "",
-      address: "",
-      note: "",
-    };
+    this.text = "";
     this.status = "";
+    this.parsed = this.parseText("");
     this.render();
   }
 
@@ -39,7 +27,7 @@ class BjpLabelCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 5;
+    return 6;
   }
 
   render() {
@@ -48,30 +36,24 @@ class BjpLabelCard extends HTMLElement {
     this.innerHTML = `
       <ha-card>
         <div class="card">
-          <h2>${this.config.title}</h2>
-          <label>
-            <span>ชื่อลูกค้า</span>
-            <input name="name" autocomplete="name" value="${this.escape(this.form.name)}" />
-          </label>
-          <label>
-            <span>เบอร์โทรศัพท์</span>
-            <input name="phone" autocomplete="tel" inputmode="tel" value="${this.escape(this.form.phone)}" />
-          </label>
-          <label>
-            <span>ที่อยู่</span>
-            <textarea name="address" rows="3">${this.escape(this.form.address)}</textarea>
-          </label>
-          <label>
-            <span>หมายเหตุ</span>
-            <textarea name="note" rows="2">${this.escape(this.form.note)}</textarea>
-          </label>
+          <h2>${this.escape(this.config.title)}</h2>
+          <label for="customer-text">วางข้อมูลลูกค้า</label>
+          <textarea id="customer-text" rows="8" placeholder="วางชื่อ เบอร์โทร และที่อยู่ที่นี่">${this.escape(this.text)}</textarea>
+
+          <section class="preview" aria-live="polite">
+            <div class="preview-title">ตัวอย่างข้อมูลที่ตรวจพบ</div>
+            <div class="preview-name" data-preview="name"></div>
+            <div class="preview-phone" data-preview="phone"></div>
+            <div class="preview-address" data-preview="address"></div>
+            <div class="preview-postal" data-preview="postal"></div>
+            <div class="warning" data-preview="warning"></div>
+          </section>
+
           <div class="actions">
-            <button class="secondary" data-action="save">บันทึก</button>
             <button class="primary" data-action="print">พิมพ์</button>
-            <button class="primary wide" data-action="save-print">บันทึกและพิมพ์</button>
             <button class="secondary" data-action="clear">ล้างข้อมูล</button>
           </div>
-          <p class="status" aria-live="polite">${this.escape(this.status)}</p>
+          <p class="status" aria-live="polite"></p>
         </div>
       </ha-card>
       <style>
@@ -80,172 +62,240 @@ class BjpLabelCard extends HTMLElement {
           padding: 20px;
           color: var(--primary-text-color);
         }
-
         h2 {
           margin: 0 0 18px;
           font-size: 28px;
           line-height: 1.25;
-          font-weight: 700;
         }
-
         label {
           display: block;
-          margin: 0 0 16px;
-        }
-
-        span {
-          display: block;
           margin-bottom: 8px;
-          font-size: 20px;
+          font-size: 21px;
           font-weight: 700;
         }
-
-        input,
         textarea {
           box-sizing: border-box;
           width: 100%;
-          min-height: 56px;
-          padding: 12px 14px;
+          min-height: 190px;
+          padding: 14px;
           border: 2px solid var(--divider-color);
-          border-radius: 8px;
+          border-radius: 10px;
           background: var(--card-background-color);
           color: var(--primary-text-color);
           font: inherit;
-          font-size: 22px;
-        }
-
-        textarea {
-          min-height: 104px;
+          font-size: 21px;
+          line-height: 1.5;
           resize: vertical;
         }
-
+        .preview {
+          margin-top: 18px;
+          padding: 16px;
+          border: 2px solid var(--divider-color);
+          border-radius: 10px;
+          background: var(--secondary-background-color);
+        }
+        .preview-title {
+          margin-bottom: 12px;
+          font-size: 17px;
+          font-weight: 700;
+          color: var(--secondary-text-color);
+        }
+        .preview-name {
+          font-size: 28px;
+          font-weight: 800;
+          line-height: 1.3;
+        }
+        .preview-phone {
+          margin-top: 5px;
+          font-size: 25px;
+          font-weight: 800;
+        }
+        .preview-address {
+          margin-top: 12px;
+          white-space: pre-line;
+          font-size: 20px;
+          line-height: 1.45;
+        }
+        .preview-postal {
+          margin-top: 8px;
+          font-size: 31px;
+          font-weight: 900;
+        }
+        .warning {
+          margin-top: 10px;
+          color: var(--error-color);
+          font-size: 18px;
+          font-weight: 700;
+          line-height: 1.4;
+        }
         .actions {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: 2fr 1fr;
           gap: 12px;
           margin-top: 18px;
         }
-
         button {
-          min-height: 64px;
+          min-height: 66px;
           border: 0;
-          border-radius: 8px;
+          border-radius: 10px;
           padding: 12px 16px;
           font: inherit;
-          font-size: 22px;
-          font-weight: 700;
+          font-size: 23px;
+          font-weight: 800;
           cursor: pointer;
         }
-
+        button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
         .primary {
           background: var(--primary-color);
           color: var(--text-primary-color);
         }
-
         .secondary {
           background: var(--secondary-background-color);
           color: var(--primary-text-color);
         }
-
-        .wide {
-          grid-column: span 2;
-        }
-
         .status {
-          min-height: 24px;
+          min-height: 25px;
           margin: 14px 0 0;
           font-size: 18px;
-          line-height: 1.35;
+          line-height: 1.4;
         }
-
         @media (max-width: 520px) {
-          .card {
-            padding: 16px;
-          }
-
-          .actions {
-            grid-template-columns: 1fr;
-          }
-
-          .wide {
-            grid-column: auto;
-          }
+          .card { padding: 16px; }
+          .actions { grid-template-columns: 1fr; }
         }
       </style>
     `;
 
-    this.querySelectorAll("input, textarea").forEach((field) => {
-      field.addEventListener("input", (event) => {
-        this.form[event.target.name] = event.target.value;
-      });
+    this.querySelector("#customer-text").addEventListener("input", (event) => {
+      this.text = event.target.value;
+      this.status = "";
+      this.parsed = this.parseText(this.text);
+      this.updatePreview();
     });
-
     this.querySelectorAll("button").forEach((button) => {
       button.addEventListener("click", () => this.handleAction(button.dataset.action));
     });
+    this.updatePreview();
+  }
+
+  updatePreview() {
+    const parsed = this.parsed;
+    this.querySelector('[data-preview="name"]').textContent = parsed.name ? `ส่ง ${parsed.name}` : "";
+    this.querySelector('[data-preview="phone"]').textContent = parsed.phone;
+    this.querySelector('[data-preview="address"]').textContent = parsed.address;
+    this.querySelector('[data-preview="postal"]').textContent = parsed.postalCode;
+    this.querySelector('[data-preview="warning"]').textContent = parsed.message;
+    this.querySelector('[data-action="print"]').disabled = !parsed.valid;
+    this.querySelector(".status").textContent = this.status;
   }
 
   async handleAction(action) {
     if (action === "clear") {
-      this.form = { name: "", phone: "", address: "", note: "" };
+      this.text = "";
       this.status = "ล้างข้อมูลแล้ว";
+      this.parsed = this.parseText("");
       this.render();
       return;
     }
-
-    if (action === "save") {
-      this.status = "การบันทึกข้อมูลจะเปิดใช้ใน Phase 2";
-      this.render();
-      return;
-    }
-
-    if (!this.validateForm()) {
-      this.render();
-      return;
-    }
+    if (!this.parsed.valid || !this._hass) return;
 
     try {
       await this._hass.callService("bjp_label", "print_label", this.serviceData());
-      this.status = action === "save-print" ? "ส่งพิมพ์แล้ว การบันทึกข้อมูลจะเปิดใช้ใน Phase 2" : "ส่งพิมพ์แล้ว";
+      this.status = "ส่งพิมพ์แล้ว";
     } catch (error) {
-      this.status = `พิมพ์ไม่สำเร็จ: ${error.message || error}`;
+      this.status = `พิมพ์ไม่สำเร็จ: ${this.friendlyError(error)}`;
     }
-    this.render();
-  }
-
-  validateForm() {
-    if (!this.form.name.trim()) {
-      this.status = "กรุณากรอกชื่อลูกค้า";
-      return false;
-    }
-    if (!this.form.phone.trim()) {
-      this.status = "กรุณากรอกเบอร์โทรศัพท์";
-      return false;
-    }
-    if (!this.form.address.trim()) {
-      this.status = "กรุณากรอกที่อยู่";
-      return false;
-    }
-    return true;
+    this.updatePreview();
   }
 
   serviceData() {
     const data = {
-      name: this.form.name.trim(),
-      phone: this.form.phone.trim(),
-      address: this.form.address.trim(),
-      note: this.form.note.trim(),
-      font: this.config.font,
+      text: this.text.trim(),
       width: Number(this.config.width),
       height: Number(this.config.height),
       density: Number(this.config.density),
       rotate: Number(this.config.rotate),
       preview: Boolean(this.config.preview),
     };
-    if (this.config.device_id) {
-      data.device_id = this.config.device_id;
-    }
+    if (this.config.device_id) data.device_id = this.config.device_id;
+    if (this.config.font) data.font = this.config.font;
     return data;
+  }
+
+  parseText(value) {
+    const text = String(value || "").replace(/\r\n?/g, "\n").trim();
+    if (!text) return { valid: false, name: "", phone: "", address: "", postalCode: "", message: "กรุณาวางข้อมูลลูกค้า" };
+
+    const phoneMatches = [...text.matchAll(/(?:\+66|0)(?:[\s-]*\d){8,9}/g)];
+    if (!phoneMatches.length) return { valid: false, name: "", phone: "", address: text, postalCode: "", message: "ไม่พบเบอร์โทรศัพท์ กรุณาตรวจสอบข้อความ" };
+    const phoneRaw = phoneMatches[0][0].trim();
+    const phone = this.formatPhone(phoneRaw);
+    const withoutPhone = text.replace(phoneRaw, " ");
+    const postalMatches = [...withoutPhone.matchAll(/(?<!\d)\d{5}(?!\d)/g)];
+    const postalCode = postalMatches.length ? postalMatches[postalMatches.length - 1][0] : "";
+
+    const markers = ["โรงพยาบาล", "รพ.", "บริษัท", "หจก.", "ร้าน", "เลขที่", "หมู่บ้าน", "ถนน", "ซอย", "แขวง", "เขต", "ตำบล", "อำเภอ", "จังหวัด", "ต.", "อ.", "จ.", "ม."];
+    const stopWords = new Set(["ส่ง", "บ้าน", "หมู่", "ถนน", "ซอย", "ตำบล", "อำเภอ", "จังหวัด", "โรงพยาบาล", "บริษัท", "ร้าน"]);
+    const candidates = [];
+    const lines = text.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+
+    lines.forEach((original, lineIndex) => {
+      let line = original.replace(/^\s*#?\s*ส่ง\s*/, "");
+      const positions = markers.map((marker) => line.indexOf(marker)).filter((position) => position >= 0);
+      const boundary = positions.length ? Math.min(...positions) : line.length;
+      let segment = line.slice(0, boundary).replace(/^[ ,:-]+|[ ,:-]+$/g, "");
+      if (/\d/.test(segment)) {
+        const localPhone = segment.search(/(?:\+66|0)(?:[\s-]*\d){8,9}/);
+        if (localPhone < 0) return;
+        segment = segment.slice(0, localPhone).trim();
+      }
+      const titleMatch = segment.match(/^(นางสาว|นาย|นาง|คุณ)\s*/);
+      const title = titleMatch ? titleMatch[1] : "";
+      const namePart = titleMatch ? segment.slice(titleMatch[0].length) : segment;
+      const words = [...namePart.matchAll(/[ก-๙]+/g)];
+      if (words.length < 2) return;
+      const first = words[0][0];
+      const second = words[1][0];
+      if (first.length < 2 || second.length < 2 || stopWords.has(first) || stopWords.has(second)) return;
+      let score = 5 + (title ? 6 : 0) + (positions.length ? 0 : 3) + (original.includes(phoneRaw) ? 2 : 0) + (words.length === 2 ? 2 : 0);
+      const namePattern = title ? `${title}\\s*${first}\\s+${second}` : `${first}\\s+${second}`;
+      candidates.push({ name: `${title}${first} ${second}`, namePattern, lineIndex, score });
+    });
+
+    if (!candidates.length) return { valid: false, name: "", phone, address: withoutPhone.trim(), postalCode, message: "ไม่พบชื่อและนามสกุล กรุณาตรวจสอบข้อความ" };
+    candidates.sort((a, b) => b.score - a.score || a.lineIndex - b.lineIndex);
+    const selected = candidates[0];
+    const address = lines.map((line, index) => {
+      let cleaned = line;
+      if (index === selected.lineIndex) {
+        cleaned = cleaned.replace(/^\s*#?\s*ส่ง\s*/, "").replace(new RegExp(selected.namePattern), " ");
+      }
+      cleaned = cleaned.replace(phoneRaw, " ");
+      cleaned = cleaned.replace(/(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*$/, " ");
+      if (postalCode) cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
+      return cleaned.replace(/^[\s,:#-]+|[\s,:#-]+$/g, "").replace(/\s+/g, " ");
+    }).filter(Boolean).join("\n");
+    const warnings = [];
+    if (phoneMatches.length > 1) warnings.push("พบหลายเบอร์โทร กรุณาตรวจสอบ");
+    if (candidates.length > 1 && candidates[1].score >= selected.score - 1) warnings.push("พบชื่อที่เป็นไปได้หลายรายการ กรุณาตรวจสอบ");
+    return { valid: true, name: selected.name, phone, address, postalCode, message: warnings.join(" • ") };
+  }
+
+  formatPhone(raw) {
+    let digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("66")) digits = `0${digits.slice(2)}`;
+    if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    if (digits.length === 9 && digits.startsWith("02")) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    if (digits.length === 9) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    return raw;
+  }
+
+  friendlyError(error) {
+    const message = error?.message || String(error || "เกิดข้อผิดพลาด");
+    return message.length > 160 ? "กรุณาตรวจสอบข้อมูลและเครื่องพิมพ์" : message;
   }
 
   escape(value) {
@@ -264,5 +314,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "bjp-label-card",
   name: "BJP Label",
-  description: "Thai customer label printing card for Niimbot through Home Assistant",
+  description: "วางข้อมูลลูกค้า ตรวจสอบ และพิมพ์ฉลากภาษาไทย",
 });

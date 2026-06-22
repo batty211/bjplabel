@@ -1,0 +1,21 @@
+{
+  "title": "BJP Label",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up BJP Label",
+        "description": "Select the Niimbot printer and Thai font used for customer labels.",
+        "data": {
+          "device_id": "Niimbot printer",
+          "font": "Thai font filename"
+        },
+        "data_description": {
+          "font": "For example: NotoSansThai-Regular.ttf"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "BJP Label is already configured."
+    }
+  }
+}

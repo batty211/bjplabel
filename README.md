@@ -32,15 +32,16 @@ ACHITECTURE.md                   Typo-compatible pointer to ARCHITECTURE.md
 2. Confirm the Niimbot B1 can print from Home Assistant.
 3. Add this repository to HACS as a custom repository with category `Integration`.
 4. Install BJP Label from HACS and restart Home Assistant.
-5. Copy `www/bjp-label-card/bjp-label-card.js` into Home Assistant `/config/www/bjp-label-card/`.
-6. Add the card resource to Lovelace:
+5. Go to Settings / Devices & services, add `BJP Label`, then select the Niimbot printer and Thai font.
+6. Copy `www/bjp-label-card/bjp-label-card.js` into Home Assistant `/config/www/bjp-label-card/`.
+7. Add the card resource to Lovelace:
 
 ```yaml
 url: /local/bjp-label-card/bjp-label-card.js
 type: module
 ```
 
-7. Add a card to a dashboard using `examples/lovelace-card.yaml`.
+8. Add a card to a dashboard using `examples/lovelace-card.yaml`.
 
 Manual install is also possible by copying `custom_components/bjp_label` into Home Assistant `custom_components`.
 
@@ -63,19 +64,18 @@ The `hass-niimbot` integration supports referencing custom fonts placed in `www/
 ## MVP Workflow
 
 1. Open the Home Assistant dashboard.
-2. Enter customer name.
-3. Enter phone number.
-4. Enter address.
-5. Tap `บันทึกและพิมพ์`.
-6. The label prints on the Niimbot B1.
+2. Paste the customer's name, phone number, and address into the single text box.
+3. Check the detected name, formatted phone number, address, and postal code.
+4. Tap `พิมพ์`.
+5. The 50 x 80 mm label prints on the Niimbot B1.
 
 ## Current Status
 
-This repository contains the initial scaffold:
+This repository contains the Phase 1 printing workflow:
 
 - Documentation.
-- Home Assistant service registration.
-- Lovelace card prototype.
+- UI-based Home Assistant setup and service registration.
+- Single-input Lovelace card with lightweight Thai customer text parsing.
 - Phase 2 SQLite schema.
 
 Phase 1 persistence is intentionally not implemented yet.
