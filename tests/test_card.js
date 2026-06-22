@@ -254,7 +254,19 @@ function testPreviewImageIsRendered() {
   uiCard.previewError = false;
 
   const nodes = new Map();
-  const node = () => ({ hidden: false, disabled: false, textContent: "", dataset: {}, removeAttribute(name) { delete this[name]; } });
+  const node = () => ({
+    hidden: false,
+    disabled: false,
+    textContent: "",
+    dataset: {},
+    attributes: {},
+    classes: new Set(),
+    classList: {
+      toggle() {},
+    },
+    setAttribute(name, value) { this.attributes[name] = value; },
+    removeAttribute(name) { delete this[name]; },
+  });
   [
     "[data-warning]",
     "#customer-text",
@@ -266,10 +278,15 @@ function testPreviewImageIsRendered() {
     '[data-action="retry-preview"]',
     ".status",
   ].forEach((selector) => nodes.set(selector, node()));
+  nodes.get("[data-preview]").classList.toggle = (name, force) => {
+    if (force) nodes.get("[data-preview]").classes.add(name);
+    else nodes.get("[data-preview]").classes.delete(name);
+  };
   uiCard.querySelector = (selector) => nodes.get(selector);
 
   uiCard.updateForm();
-  assert.equal(nodes.get("[data-preview]").hidden, false);
+  assert.equal(nodes.get("[data-preview]").classes.has("is-hidden"), false);
+  assert.equal(nodes.get("[data-preview]").attributes["aria-hidden"], "false");
   assert.equal(nodes.get("[data-preview-image]").hidden, false);
   assert.equal(nodes.get("[data-preview-image]").src, uiCard.previewImage);
   assert.equal(nodes.get('[data-action="print"]').disabled, false);
@@ -278,6 +295,9 @@ function testPreviewImageIsRendered() {
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/manifest.json")));
 const cardSource = fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/frontend/bjp-label-card.js"), "utf8");
 assert.match(cardSource, new RegExp(`BJP_LABEL_VERSION = ["']${manifest.version}["']`));
+assert.doesNotMatch(cardSource, /<section class="preview"[^>]*\shidden(?:\s|>)/);
+assert.match(cardSource, /transform:\s*translate\(-50%, -50%\) rotate\(-90deg\)/);
+assert.match(cardSource, /aspect-ratio:\s*\$\{previewWidth\}\s*\/\s*\$\{previewHeight\}/);
 
 Promise.resolve()
   .then(testPreviewThenPrint)

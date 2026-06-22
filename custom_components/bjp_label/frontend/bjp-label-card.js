@@ -1,4 +1,4 @@
-const BJP_LABEL_VERSION = "0.3.2";
+const BJP_LABEL_VERSION = "0.3.3";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
 
@@ -42,13 +42,7 @@ class BjpLabelCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    if (
-      this.formatted?.valid &&
-      !this.previewImage &&
-      !this.isPreviewing &&
-      !this.previewError &&
-      this.previewTimer === undefined
-    ) {
+    if (this.formatted?.valid && !this.previewImage && !this.isPreviewing && !this.previewError && this.previewTimer === undefined) {
       this.schedulePreview();
     }
   }
@@ -59,6 +53,11 @@ class BjpLabelCard extends HTMLElement {
 
   render() {
     if (!this.config) return;
+
+    const previewWidth = this.positiveNumber(this.config.width, 640);
+    const previewHeight = this.positiveNumber(this.config.height, 384);
+    const previewImageWidth = (previewHeight / previewWidth) * 100;
+    const previewImageHeight = (previewWidth / previewHeight) * 100;
 
     this.innerHTML = `
       <ha-card>
@@ -74,9 +73,9 @@ class BjpLabelCard extends HTMLElement {
             <div class="warning" data-warning aria-live="polite"></div>
           </div>
 
-          <section class="preview" data-preview hidden>
+          <section class="preview is-hidden" data-preview aria-hidden="true">
             <h3>ตัวอย่างฉลากก่อนพิมพ์</h3>
-            <div class="preview-frame">
+            <div class="preview-frame" style="aspect-ratio: ${previewWidth} / ${previewHeight}; --preview-image-width: ${previewImageWidth}%; --preview-image-height: ${previewImageHeight}%">
               <img data-preview-image alt="ตัวอย่างฉลากที่จะพิมพ์" hidden>
               <p data-preview-placeholder></p>
             </div>
@@ -84,7 +83,7 @@ class BjpLabelCard extends HTMLElement {
           </section>
 
           <div class="actions">
-            <button class="primary" data-action="print">พิมพ์จริง</button>
+            <button class="primary" data-action="print">พิมพ์</button>
             <button class="secondary" data-action="clear">ล้างข้อมูล</button>
           </div>
           <p class="status" aria-live="polite"></p>
@@ -141,7 +140,7 @@ class BjpLabelCard extends HTMLElement {
         .preview {
           margin-top: 18px;
         }
-        .preview[hidden] {
+        .preview.is-hidden {
           display: none;
         }
         .preview h3 {
@@ -149,21 +148,29 @@ class BjpLabelCard extends HTMLElement {
           font-size: 21px;
         }
         .preview-frame {
+          position: relative;
           display: flex;
-          min-height: 150px;
+          width: 100%;
+          max-width: ${previewWidth}px;
           align-items: center;
           justify-content: center;
           overflow: hidden;
           border: 2px solid var(--divider-color);
           border-radius: 10px;
           background: #fff;
+          margin: 0 auto;
         }
         .preview-frame img {
+          position: absolute;
+          inset: 50% auto auto 50%;
           display: block;
-          width: 100%;
-          height: auto;
-          max-height: 360px;
-          object-fit: contain;
+          width: var(--preview-image-width);
+          height: var(--preview-image-height);
+          max-width: none;
+          max-height: none;
+          object-fit: fill;
+          transform: translate(-50%, -50%) rotate(-90deg);
+          transform-origin: center;
         }
         .preview-frame img[hidden] {
           display: none;
@@ -266,27 +273,19 @@ class BjpLabelCard extends HTMLElement {
     this.querySelector("#formatted-text").disabled = this.isPrinting;
     const printButton = this.querySelector('[data-action="print"]');
     printButton.disabled = !this.previewSnapshot || this.isPreviewing || this.isPrinting || this.printLocked || Boolean(this.config.preview);
-    printButton.textContent = this.isPrinting
-      ? "กำลังพิมพ์..."
-      : this.printLocked
-        ? "พิมพ์แล้ว"
-        : this.config.preview
-          ? "โหมดดูตัวอย่างเท่านั้น"
-          : "พิมพ์จริง";
+    printButton.textContent = this.isPrinting ? "กำลังพิมพ์..." : this.printLocked ? "พิมพ์แล้ว" : this.config.preview ? "โหมดดูตัวอย่างเท่านั้น" : "พิมพ์จริง";
     const preview = this.querySelector("[data-preview]");
     const previewImage = this.querySelector("[data-preview-image]");
     const placeholder = this.querySelector("[data-preview-placeholder]");
     const retryButton = this.querySelector('[data-action="retry-preview"]');
-    preview.hidden = !this.formatted.valid && !this.isPreviewing && !this.previewError;
+    const hidePreview = !this.formatted.valid && !this.isPreviewing && !this.previewError;
+    preview.classList.toggle("is-hidden", hidePreview);
+    preview.setAttribute("aria-hidden", String(hidePreview));
     previewImage.hidden = !this.previewImage;
     if (this.previewImage) previewImage.src = this.previewImage;
     else previewImage.removeAttribute("src");
     placeholder.hidden = Boolean(this.previewImage);
-    placeholder.textContent = this.isPreviewing
-      ? "กำลังสร้างตัวอย่าง..."
-      : this.previewError
-        ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง"
-        : "รอสร้างตัวอย่างฉลาก";
+    placeholder.textContent = this.isPreviewing ? "กำลังสร้างตัวอย่าง..." : this.previewError ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง" : "รอสร้างตัวอย่างฉลาก";
     retryButton.hidden = !this.previewError || this.isPreviewing;
     const status = this.querySelector(".status");
     status.textContent = this.status || (this.formatted.valid ? "กำลังเตรียมตัวอย่างก่อนพิมพ์" : "รอข้อมูล");
@@ -376,14 +375,7 @@ class BjpLabelCard extends HTMLElement {
     this.statusType = "printing";
     this.updateForm();
     try {
-      const response = await this._hass.callService(
-        "bjp_label",
-        "print_label",
-        previewData,
-        undefined,
-        true,
-        true,
-      );
+      const response = await this._hass.callService("bjp_label", "print_label", previewData, undefined, true, true);
       if (revision !== this.previewRevision) return;
       const image = response?.image || response?.response?.image;
       if (typeof image !== "string" || !image.startsWith("data:image/")) {
@@ -391,9 +383,7 @@ class BjpLabelCard extends HTMLElement {
       }
       this.previewImage = image;
       this.previewSnapshot = { ...previewData, preview: false };
-      this.status = this.config.preview
-        ? "ตัวอย่างพร้อมแล้ว (โหมดดูตัวอย่างเท่านั้น)"
-        : "ตัวอย่างพร้อมแล้ว กรุณาตรวจสอบก่อนพิมพ์จริง";
+      this.status = this.config.preview ? "ตัวอย่างพร้อมแล้ว (โหมดดูตัวอย่างเท่านั้น)" : "ตัวอย่างพร้อมแล้ว กรุณาตรวจสอบก่อนพิมพ์จริง";
       this.statusType = "done";
     } catch (error) {
       if (revision !== this.previewRevision) return;
@@ -452,14 +442,14 @@ class BjpLabelCard extends HTMLElement {
     return data;
   }
 
+  positiveNumber(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : fallback;
+  }
+
   formatParsed(parsed) {
     if (!parsed.valid) return "";
-    return [
-      parsed.name,
-      parsed.phone,
-      ...parsed.address.split("\n").filter(Boolean),
-      parsed.postalCode,
-    ].filter(Boolean).join("\n");
+    return [parsed.name, parsed.phone, ...parsed.address.split("\n").filter(Boolean), parsed.postalCode].filter(Boolean).join("\n");
   }
 
   parseFormattedText(value) {
@@ -496,10 +486,15 @@ class BjpLabelCard extends HTMLElement {
   }
 
   parseText(value) {
-    const text = String(value || "").replace(/\r\n?/g, "\n").trim();
+    const text = String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .trim();
     if (!text) return { valid: false, name: "", phone: "", address: "", postalCode: "", message: "กรุณาวางข้อมูลลูกค้า" };
 
-    const lines = text.split("\n").map((line) => line.replace(/[ \t]+/g, " ").trim()).filter(Boolean);
+    const lines = text
+      .split("\n")
+      .map((line) => line.replace(/[ \t]+/g, " ").trim())
+      .filter(Boolean);
     const phonePattern = /(?<!\d)(?:\+66|0)(?:[ \t-]*\d){8,9}(?!\d)/g;
     const phoneMatches = [];
     lines.forEach((line, lineIndex) => {
@@ -514,9 +509,7 @@ class BjpLabelCard extends HTMLElement {
     const postalMatches = [];
     lines.forEach((line, lineIndex) => {
       for (const match of line.matchAll(/(?<!\d)\d{5}(?!\d)/g)) {
-        const overlapsPhone = lineIndex === selectedPhone.lineIndex &&
-          match.index < selectedPhone.index + phoneRaw.length &&
-          selectedPhone.index < match.index + match[0].length;
+        const overlapsPhone = lineIndex === selectedPhone.lineIndex && match.index < selectedPhone.index + phoneRaw.length && selectedPhone.index < match.index + match[0].length;
         if (!overlapsPhone) postalMatches.push({ raw: match[0], lineIndex });
       }
     });
@@ -559,7 +552,10 @@ class BjpLabelCard extends HTMLElement {
         if (postalCode && lineIndex === selectedPostal?.lineIndex) {
           cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
         }
-        cleaned = cleaned.replace(/(?:^|\s)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*/g, " ").replace(/^[\s,:#-]+|[\s,:#-]+$/g, "").replace(/\s+/g, " ");
+        cleaned = cleaned
+          .replace(/(?:^|\s)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*/g, " ")
+          .replace(/^[\s,:#-]+|[\s,:#-]+$/g, "")
+          .replace(/\s+/g, " ");
         const boundary = cleaned.search(addressStart);
         const name = cleaned.slice(0, boundary < 0 ? cleaned.length : boundary).trim();
         if (name.length < 2 || !/[A-Za-zก-๙]/.test(name)) return false;
@@ -570,18 +566,20 @@ class BjpLabelCard extends HTMLElement {
     if (!candidates.length) return { valid: false, name: "", phone, address: text, postalCode, message: "ไม่พบชื่อผู้รับ กรุณาตรวจสอบข้อความ" };
     candidates.sort((a, b) => b.score - a.score || a.lineIndex - b.lineIndex);
     const selected = candidates[0];
-    const addressLines = lines.map((line, index) => {
-      if (/^(?:ที่อยู่ผู้รับ|ข้อมูลผู้รับ)\s*:?$/.test(line)) return "";
-      let cleaned = line;
-      if (index === selected.lineIndex) {
-        cleaned = cleaned.replace(/^\s*#?\s*ส่ง\s*/, "");
-        cleaned = selected.fallback ? cleaned.replace(selected.name, " ") : cleaned.replace(new RegExp(selected.namePattern), " ");
-      }
-      if (index === selectedPhone.lineIndex) cleaned = cleaned.replace(phoneRaw, " ");
-      cleaned = cleaned.replace(/(?:^|\s)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*/g, " ");
-      if (postalCode && index === selectedPostal?.lineIndex) cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
-      return cleaned.replace(/^[\s,:#-]+|[\s,:#-]+$/g, "").replace(/\s+/g, " ");
-    }).filter(Boolean);
+    const addressLines = lines
+      .map((line, index) => {
+        if (/^(?:ที่อยู่ผู้รับ|ข้อมูลผู้รับ)\s*:?$/.test(line)) return "";
+        let cleaned = line;
+        if (index === selected.lineIndex) {
+          cleaned = cleaned.replace(/^\s*#?\s*ส่ง\s*/, "");
+          cleaned = selected.fallback ? cleaned.replace(selected.name, " ") : cleaned.replace(new RegExp(selected.namePattern), " ");
+        }
+        if (index === selectedPhone.lineIndex) cleaned = cleaned.replace(phoneRaw, " ");
+        cleaned = cleaned.replace(/(?:^|\s)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*/g, " ");
+        if (postalCode && index === selectedPostal?.lineIndex) cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
+        return cleaned.replace(/^[\s,:#-]+|[\s,:#-]+$/g, "").replace(/\s+/g, " ");
+      })
+      .filter(Boolean);
     const address = this.wrapAddressLines(addressLines);
     const warnings = [];
     if (phoneMatches.length > 1) warnings.push("พบหลายเบอร์โทร กรุณาตรวจสอบ");
@@ -605,7 +603,10 @@ class BjpLabelCard extends HTMLElement {
   wrapAddressLines(lines, width = 34, maxLines = 3) {
     const wrapped = [];
     for (const sourceLine of lines) {
-      const chunks = sourceLine.split(/(?<=,)\s*/).map((chunk) => chunk.trim()).filter(Boolean);
+      const chunks = sourceLine
+        .split(/(?<=,)\s*/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean);
       for (const chunk of chunks) {
         let current = "";
         for (const word of chunk.split(/\s+/)) {
@@ -654,34 +655,35 @@ class BjpLabelCard extends HTMLElement {
     const province = extract(/(?:จังหวัด|จ\.)\s*([^\s,]+)/);
     const district = extract(/(?:อำเภอ|อ\.|เขต)\s*([^\s,]+)/);
     const subdistrict = extract(/(?:ตำบล|ต\.|แขวง)\s*([^\s,]+)/);
-    let matches = rows.filter((row) =>
-      (!province || this.locationMatches(province, row.p, "province")) &&
-      (!district || this.locationMatches(district, row.d, "district")) &&
-      (!subdistrict || this.locationMatches(subdistrict, row.s, "subdistrict"))
+    let matches = rows.filter(
+      (row) => (!province || this.locationMatches(province, row.p, "province")) && (!district || this.locationMatches(district, row.d, "district")) && (!subdistrict || this.locationMatches(subdistrict, row.s, "subdistrict")),
     );
 
     if (!matches.length && subdistrict && (district || province)) {
-      matches = rows.filter((row) =>
-        (!province || this.locationMatches(province, row.p, "province")) &&
-        (!district || this.locationMatches(district, row.d, "district"))
-      );
+      matches = rows.filter((row) => (!province || this.locationMatches(province, row.p, "province")) && (!district || this.locationMatches(district, row.d, "district")));
     }
 
     if (!province && !district && !subdistrict) {
-      matches = rows.filter((row) => [
-        [row.s, "subdistrict"],
-        [row.d, "district"],
-        [row.p, "province"],
-      ].filter(([name, kind]) => {
-        const plain = this.plainLocation(name, kind);
-        return plain.length >= 3 && text.includes(plain);
-      }).length >= 2);
+      matches = rows.filter(
+        (row) =>
+          [
+            [row.s, "subdistrict"],
+            [row.d, "district"],
+            [row.p, "province"],
+          ].filter(([name, kind]) => {
+            const plain = this.plainLocation(name, kind);
+            return plain.length >= 3 && text.includes(plain);
+          }).length >= 2,
+      );
     }
     return [...new Set(matches.map((row) => String(row.z)))];
   }
 
   normalizeLocation(value) {
-    return String(value || "").replaceAll("กรุงเทพฯ", "กรุงเทพมหานคร").replace(/\s+/g, " ").trim();
+    return String(value || "")
+      .replaceAll("กรุงเทพฯ", "กรุงเทพมหานคร")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   plainLocation(value, kind) {
@@ -700,8 +702,7 @@ class BjpLabelCard extends HTMLElement {
   locationMatches(query, actual, kind) {
     const plainQuery = this.plainLocation(query, kind);
     const plainActual = this.plainLocation(actual, kind);
-    return plainQuery === plainActual ||
-      (kind === "district" && plainQuery === "เมือง" && plainActual.startsWith("เมือง"));
+    return plainQuery === plainActual || (kind === "district" && plainQuery === "เมือง" && plainActual.startsWith("เมือง"));
   }
 
   formatPhone(raw) {
