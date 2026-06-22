@@ -13,6 +13,8 @@ from .postcode import lookup_postcodes
 _THAI_WORD = re.compile(r"[ก-๙]+")
 _POSTAL_CODE = re.compile(r"(?<!\d)(\d{5})(?!\d)")
 _SEND_PREFIX = re.compile(r"^\s*#?\s*ส่ง\s*")
+_BOILERPLATE = re.compile(r"^\s*(?:ที่อยู่ผู้รับ|ข้อมูลผู้รับ)\s*:?[\s-]*$")
+_PHONE_LABEL = re.compile(r"(?<!\S)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*")
 _HONORIFIC = re.compile(r"^(นางสาว|นาย|นาง|คุณ)\s*")
 _ADDRESS_MARKERS = (
     "โรงพยาบาล",
@@ -79,28 +81,42 @@ def parse_customer_text(text: str) -> ParsedLabel:
     if not normalized:
         raise ParseError("กรุณาวางข้อมูลลูกค้า")
 
-    phone_matches = [
-        match
-        for match in PhoneNumberMatcher(normalized, "TH")
-        if phonenumbers.is_possible_number(match.number)
-        and phonenumbers.region_code_for_number(match.number) == "TH"
-    ]
+    lines = normalized.splitlines()
+    phone_matches = []
+    for line_index, line in enumerate(lines):
+        for match in PhoneNumberMatcher(line, "TH"):
+            if (
+                phonenumbers.is_possible_number(match.number)
+                and phonenumbers.region_code_for_number(match.number) == "TH"
+            ):
+                phone_matches.append((line_index, match))
     if not phone_matches:
         raise ParseError("ไม่พบเบอร์โทรศัพท์ กรุณาตรวจสอบข้อความ")
 
-    selected_phone = phone_matches[0]
+    phone_line_index, selected_phone = phone_matches[0]
     phone = _format_thai_phone(selected_phone.number)
-    postal_matches = [
-        match
-        for match in _POSTAL_CODE.finditer(normalized)
-        if not _overlaps(match.start(), match.end(), selected_phone.start, selected_phone.end)
-    ]
-    postal_match = postal_matches[-1] if postal_matches else None
+    postal_matches = []
+    for line_index, line in enumerate(lines):
+        for match in _POSTAL_CODE.finditer(line):
+            if line_index != phone_line_index or not _overlaps(
+                match.start(), match.end(), selected_phone.start, selected_phone.end
+            ):
+                postal_matches.append((line_index, match))
+    postal_line_index, postal_match = postal_matches[-1] if postal_matches else (None, None)
 
-    lines = normalized.splitlines()
     candidates = _find_name_candidates(lines)
     if not candidates:
-        raise ParseError("ไม่พบชื่อและนามสกุล กรุณาตรวจสอบข้อความ")
+        fallback = _find_fallback_name(
+            lines,
+            phone_line_index,
+            selected_phone.raw_string,
+            postal_line_index,
+            postal_match.group(0) if postal_match else "",
+        )
+        if fallback:
+            candidates.append(fallback)
+        else:
+            raise ParseError("ไม่พบชื่อผู้รับ กรุณาตรวจสอบข้อความ")
 
     candidates.sort(key=lambda item: (-item.score, item.line_index, item.start))
     selected_name = candidates[0]
@@ -113,7 +129,9 @@ def parse_customer_text(text: str) -> ParsedLabel:
     address = _build_address(
         lines,
         selected_name,
+        phone_line_index,
         selected_phone.raw_string,
+        postal_line_index,
         postal_match.group(0) if postal_match else "",
     )
     postal_code = postal_match.group(1) if postal_match else ""
@@ -214,6 +232,41 @@ def _find_name_candidates(lines: list[str]) -> list[_NameCandidate]:
     return candidates
 
 
+def _find_fallback_name(
+    lines: list[str],
+    phone_line_index: int,
+    phone_raw: str,
+    postal_line_index: int | None,
+    postal_code: str,
+) -> _NameCandidate | None:
+    """Use non-address text as an organization or recipient name."""
+    address_start = re.compile(
+        r"(?<!\d)\d+(?:[/\-]\d+)*|(?:เลขที่|หมู่บ้าน|ถนน|ซอย|แขวง|เขต|ตำบล|อำเภอ|จังหวัด|ต\.|อ\.|จ\.|ม\.)"
+    )
+    for line_index, original in enumerate(lines):
+        if _BOILERPLATE.match(original):
+            continue
+        cleaned = _SEND_PREFIX.sub("", original)
+        if line_index == phone_line_index:
+            cleaned = cleaned.replace(phone_raw, " ")
+        if postal_code and line_index == postal_line_index:
+            cleaned = re.sub(
+                rf"(?<!\d){re.escape(postal_code)}(?!\d)", " ", cleaned, count=1
+            )
+        cleaned = _PHONE_LABEL.sub(" ", cleaned).strip(" ,:-#")
+        boundary = address_start.search(cleaned)
+        name = cleaned[: boundary.start() if boundary else len(cleaned)].strip(" ,:-#")
+        name = " ".join(name.split())
+        if len(name) < 2 or not re.search(r"[A-Za-zก-๙]", name):
+            continue
+        start = original.find(name)
+        if start < 0:
+            # Whitespace normalization can make an exact lookup fail.
+            start = 0
+        return _NameCandidate(name, line_index, start, start + len(name), 1)
+    return None
+
+
 def _contains_phone(text: str) -> bool:
     return any(
         phonenumbers.is_possible_number(match.number)
@@ -227,44 +280,77 @@ def _phone_like_position(text: str) -> int | None:
 
 
 def _build_address(
-    lines: list[str], candidate: _NameCandidate, phone_raw: str, postal_code: str
+    lines: list[str],
+    candidate: _NameCandidate,
+    phone_line_index: int,
+    phone_raw: str,
+    postal_line_index: int | None,
+    postal_code: str,
 ) -> str:
     address_lines = []
     for index, line in enumerate(lines):
+        if _BOILERPLATE.match(line):
+            continue
         cleaned = line
         if index == candidate.line_index:
             cleaned = cleaned[: candidate.start] + cleaned[candidate.end :]
             cleaned = _SEND_PREFIX.sub("", cleaned)
-        cleaned = cleaned.replace(phone_raw, " ")
-        cleaned = re.sub(r"(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*$", " ", cleaned)
-        if postal_code:
+        if index == phone_line_index:
+            cleaned = cleaned.replace(phone_raw, " ")
+        cleaned = _PHONE_LABEL.sub(" ", cleaned)
+        if postal_code and index == postal_line_index:
             cleaned = re.sub(
                 rf"(?<!\d){re.escape(postal_code)}(?!\d)", " ", cleaned, count=1
             )
         cleaned = " ".join(cleaned.strip(" ,:-#").split())
         if cleaned:
             address_lines.append(cleaned)
-    return _wrap_address_lines(address_lines)
+    return format_address_lines(address_lines)
 
 
-def _wrap_address_lines(lines: list[str], width: int = 34, max_lines: int = 3) -> str:
-    """Wrap address words into at most three readable label lines."""
+def format_address_lines(
+    lines: list[str], width: int = 34, max_lines: int = 3
+) -> str:
+    """Keep semantic breaks and balance an address into one to three lines."""
     wrapped: list[str] = []
     for source_line in lines:
-        current = ""
-        for word in source_line.split():
-            proposed = f"{current} {word}".strip()
-            if current and len(proposed) > width:
+        comma_chunks = [
+            chunk.strip()
+            for chunk in re.split(r"(?<=,)\s*", source_line)
+            if chunk.strip()
+        ]
+        for chunk in comma_chunks:
+            current = ""
+            for word in chunk.split():
+                proposed = f"{current} {word}".strip()
+                if current and len(proposed) > width:
+                    wrapped.append(current)
+                    current = word
+                else:
+                    current = proposed
+            if current:
                 wrapped.append(current)
-                current = word
-            else:
-                current = proposed
-        if current:
-            wrapped.append(current)
 
-    if len(wrapped) <= max_lines:
-        return "\n".join(wrapped)
-    return "\n".join(wrapped[: max_lines - 1] + [" ".join(wrapped[max_lines - 1 :])])
+    if len(wrapped) == 1:
+        words = wrapped[0].split()
+        if len(words) > 1:
+            split_at = min(
+                range(1, len(words)),
+                key=lambda index: abs(
+                    len(" ".join(words[:index])) - len(" ".join(words[index:]))
+                ),
+            )
+            wrapped = [" ".join(words[:split_at]), " ".join(words[split_at:])]
+
+    while len(wrapped) > max_lines:
+        merge_at = min(
+            range(len(wrapped) - 1),
+            key=lambda index: len(wrapped[index]) + len(wrapped[index + 1]),
+        )
+        wrapped[merge_at : merge_at + 2] = [
+            f"{wrapped[merge_at]} {wrapped[merge_at + 1]}".strip()
+        ]
+    return "\n".join(wrapped)
 
 
 def _overlaps(start: int, end: int, other_start: int, other_end: int) -> bool:

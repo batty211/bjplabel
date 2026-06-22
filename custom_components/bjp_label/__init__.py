@@ -32,7 +32,8 @@ from .const import (
     VERSION,
 )
 from .label import build_label_payload
-from .parser import ParseError, ParsedLabel, parse_customer_text
+from .parser import ParseError, ParsedLabel, format_address_lines, parse_customer_text
+from .printer import async_print_niimbot
 
 _LOGGER = logging.getLogger(__name__)
 _FRONTEND_PATH = Path(__file__).parent / "frontend"
@@ -104,22 +105,15 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         if not device_id:
             raise ServiceValidationError("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Niimbot")
 
-        service_data = {
-            "payload": build_label_payload(parsed, font),
-            "width": data["width"],
-            "height": data["height"],
-            "density": data["density"],
-            "rotate": data["rotate"],
-        }
-        if data["preview"]:
-            service_data["preview"] = True
-
-        await hass.services.async_call(
-            "niimbot",
-            "print",
-            service_data=service_data,
-            target={"device_id": device_id},
-            blocking=True,
+        await async_print_niimbot(
+            hass,
+            payload=build_label_payload(parsed, font),
+            width=data["width"],
+            height=data["height"],
+            density=data["density"],
+            rotate=data["rotate"],
+            preview=data["preview"],
+            device_id=device_id,
             context=call.context,
         )
 
@@ -179,6 +173,6 @@ def _parse_service_data(data: dict) -> ParsedLabel:
     return ParsedLabel(
         name=name,
         phone=phone,
-        address=data.get("address", "").strip(),
+        address=format_address_lines(data.get("address", "").strip().splitlines()),
         postal_code=data.get("postal_code", "").strip(),
     )

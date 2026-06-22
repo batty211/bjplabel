@@ -43,7 +43,7 @@ Integration:
 
 Label v1 for 50 x 80 mm paper:
 
-- Prominent recipient name prefixed with `ส่ง`
+- Prominent recipient name without an added delivery prefix
 - Formatted Thai phone number
 - Auto-fitted address
 - Prominent postal code when detected

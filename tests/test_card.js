@@ -40,7 +40,7 @@ const parsed = card.parseText(
 );
 assert.equal(
   card.formatParsed(parsed),
-  "ส่ง เทพฤทธิ์ ดีเจริญ\n081-754-4374\n14/23 ม.4 ต.ธรรมศาลา อ.เมือง จ.นครปฐม\n73000",
+  "เทพฤทธิ์ ดีเจริญ\n081-754-4374\n14/23 ม.4 ต.ธรรมศาลา อ.เมือง\nจ.นครปฐม\n73000",
 );
 
 const inferred = card.parseText(
@@ -57,6 +57,32 @@ const organizationAddress = card.parseText(
   "ส่งมนูญ เบญจพรหม โรงพยาบาลส่งเสริมสุขภาพตำบลบ้านดงกลาง อ.คอนสาร จ.ชัยภูมิ 0818719257",
 );
 assert.equal(organizationAddress.postalCode, "36180");
+
+const separatedNumbers = card.parseText(
+  "ที่อยู่ผู้รับ\nคุณไพรัตน์ เปรมสุขวิศรุต\n299/82 หมู่บ้านมัณฑนา-เลควัชรพล ถนนสุขาภิบาล 5 ออเงิน สายไหม กรุงเทพมหานคร 10220\n0819224340",
+);
+assert.equal(separatedNumbers.name, "คุณไพรัตน์ เปรมสุขวิศรุต");
+assert.equal(separatedNumbers.phone, "081-922-4340");
+assert.equal(separatedNumbers.postalCode, "10220");
+assert.doesNotMatch(separatedNumbers.phone, /022-008-1922/);
+assert.doesNotMatch(separatedNumbers.address, /10220|0819224340/);
+assert.ok(separatedNumbers.address.split("\n").length <= 3);
+
+const balancedAddress = card.parseText(
+  "ปู จักรวุธ\n588/1 เสนานิคม1ซอย12\nจันทรเกษม,จตุจักร\nกทม.10900\n# 0949499796",
+);
+assert.equal(balancedAddress.phone, "094-949-9796");
+assert.equal(balancedAddress.address, "588/1 เสนานิคม1ซอย12\nจันทรเกษม,\nจตุจักร กทม.");
+assert.equal(balancedAddress.postalCode, "10900");
+
+const shop = card.parseText(
+  "ร้าน PK ตลาดอินโดจีนมุกดาหาร 24/8 ถนนสำราญชายโขงใต้ ตำบลศรีบุญเรือง อำเภอเมือง จังหวัดมุกดาหาร 49000\nโทร 087 457 5560",
+);
+assert.equal(shop.name, "ร้าน PK ตลาดอินโดจีนมุกดาหาร");
+assert.equal(shop.phone, "087-457-5560");
+assert.equal(shop.postalCode, "49000");
+assert.match(shop.address, /^24\/8 ถนนสำราญชายโขงใต้/);
+assert.ok(shop.address.split("\n").length <= 3);
 
 card.formattedText = [
   "ส่ง นายสมชาย รักดี",
@@ -91,6 +117,10 @@ assert.equal(
 
 assert.equal(
   card.parseFormattedText("ส่ง สมชาย รักดี\n123\nกรุงเทพฯ").valid,
+  false,
+);
+assert.equal(
+  card.parseFormattedText("สมชาย รักดี\n081-234-5678\nหนึ่ง\nสอง\nสาม\nสี่\n10110").valid,
   false,
 );
 

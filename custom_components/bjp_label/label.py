@@ -19,7 +19,7 @@ def build_label_payload(parsed: LabelData, font: str) -> list[dict]:
     payload = [
         {
             "type": "new_multiline",
-            "value": f"ส่ง {parsed.name}",
+            "value": parsed.name,
             "font": font,
             "x": 20,
             "y": 12,

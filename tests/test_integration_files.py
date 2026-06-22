@@ -44,6 +44,13 @@ class IntegrationPackageTests(unittest.TestCase):
             (_INTEGRATION / "frontend" / "THAI_ADDRESS_DATA_LICENSE.txt").is_file()
         )
 
+    def test_printer_backend_keeps_niimbot_behind_integration_service(self):
+        integration_source = (_INTEGRATION / "__init__.py").read_text(encoding="utf-8")
+        printer_source = (_INTEGRATION / "printer.py").read_text(encoding="utf-8")
+        self.assertIn("async_print_niimbot", integration_source)
+        self.assertIn('"niimbot"', printer_source)
+        self.assertIn('"print"', printer_source)
+
 
 if __name__ == "__main__":
     unittest.main()

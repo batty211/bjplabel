@@ -61,6 +61,12 @@ Responsibilities:
 
 The integration must not implement Niimbot transport, Bluetooth, rasterization, or printer protocol code.
 
+The public `bjp_label.print_label` service is the printer-independent boundary used
+by the Lovelace card. Rendering and the internal printer backend are kept separate,
+so a future XP-420B backend can be added after selecting its Home Assistant print
+integration without changing the normal card workflow. Phase 1 continues to use
+only `niimbot.print`.
+
 ## Printing
 
 BJP Label calls the existing `hass-niimbot` service:
@@ -70,7 +76,7 @@ action: niimbot.print
 data:
   payload:
     - type: text
-      value: ส่ง Customer Name
+      value: Customer Name
       font: NotoSansThai-Regular.ttf
       x: 24
       y: 20

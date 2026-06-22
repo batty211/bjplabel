@@ -23,7 +23,7 @@ class LabelLayoutTests(unittest.TestCase):
 
         payload = build_label_payload(parsed, "/config/www/fonts/thai.ttf")
 
-        self.assertEqual(payload[0]["value"], "ส่ง เทพฤทธิ์ ดีเจริญ")
+        self.assertEqual(payload[0]["value"], "เทพฤทธิ์ ดีเจริญ")
         self.assertEqual(payload[1]["size"], payload[-1]["size"])
         for element in payload:
             self.assertLess(element["x"], 640)

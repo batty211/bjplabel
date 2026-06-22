@@ -96,8 +96,47 @@ class ParseCustomerTextTests(unittest.TestCase):
             parse_customer_text("สมชาย รักดี\n99 ถนนสุขุมวิท")
 
     def test_missing_name_is_rejected(self):
-        with self.assertRaisesRegex(ParseError, "ไม่พบชื่อและนามสกุล"):
+        with self.assertRaisesRegex(ParseError, "ไม่พบชื่อผู้รับ"):
             parse_customer_text("99 ถนนสุขุมวิท จ.กรุงเทพฯ 0812345678")
+
+    def test_postcode_and_phone_on_separate_lines_do_not_join(self):
+        parsed = parse_customer_text(
+            """ที่อยู่ผู้รับ
+คุณไพรัตน์ เปรมสุขวิศรุต
+299/82 หมู่บ้านมัณฑนา-เลควัชรพล ถนนสุขาภิบาล 5 ออเงิน สายไหม กรุงเทพมหานคร 10220
+0819224340"""
+        )
+        self.assertEqual(parsed.name, "คุณไพรัตน์ เปรมสุขวิศรุต")
+        self.assertEqual(parsed.phone, "081-922-4340")
+        self.assertEqual(parsed.postal_code, "10220")
+        self.assertNotIn("0819224340", parsed.address)
+        self.assertNotIn("10220", parsed.address)
+        self.assertLessEqual(len(parsed.address.splitlines()), 3)
+
+    def test_address_is_balanced_into_three_lines(self):
+        parsed = parse_customer_text(
+            """ปู จักรวุธ
+588/1 เสนานิคม1ซอย12
+จันทรเกษม,จตุจักร
+กทม.10900
+# 0949499796"""
+        )
+        self.assertEqual(parsed.name, "ปู จักรวุธ")
+        self.assertEqual(parsed.phone, "094-949-9796")
+        self.assertEqual(parsed.address, "588/1 เสนานิคม1ซอย12\nจันทรเกษม,\nจตุจักร กทม.")
+        self.assertEqual(parsed.postal_code, "10900")
+
+    def test_organization_name_falls_back_to_text_before_address(self):
+        parsed = parse_customer_text(
+            "ร้าน PK ตลาดอินโดจีนมุกดาหาร 24/8 ถนนสำราญชายโขงใต้ "
+            "ตำบลศรีบุญเรือง อำเภอเมือง จังหวัดมุกดาหาร 49000\n"
+            "โทร 087 457 5560"
+        )
+        self.assertEqual(parsed.name, "ร้าน PK ตลาดอินโดจีนมุกดาหาร")
+        self.assertEqual(parsed.phone, "087-457-5560")
+        self.assertEqual(parsed.postal_code, "49000")
+        self.assertTrue(parsed.address.startswith("24/8 ถนนสำราญชายโขงใต้"))
+        self.assertLessEqual(len(parsed.address.splitlines()), 3)
 
 
 if __name__ == "__main__":

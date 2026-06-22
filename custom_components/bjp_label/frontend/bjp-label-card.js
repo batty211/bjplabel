@@ -1,4 +1,4 @@
-const BJP_LABEL_VERSION = "0.3.0";
+const BJP_LABEL_VERSION = "0.3.1";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 
 class BjpLabelCard extends HTMLElement {
@@ -289,7 +289,7 @@ class BjpLabelCard extends HTMLElement {
   formatParsed(parsed) {
     if (!parsed.valid) return "";
     return [
-      `ส่ง ${parsed.name}`,
+      parsed.name,
       parsed.phone,
       ...parsed.address.split("\n").filter(Boolean),
       parsed.postalCode,
@@ -323,6 +323,9 @@ class BjpLabelCard extends HTMLElement {
     if (phoneDigits.length < 9 || phoneDigits.length > 10) {
       return { valid: false, name, phone, address, postalCode, message: "กรุณาตรวจสอบเบอร์โทรในบรรทัดที่สอง" };
     }
+    if (address.split("\n").filter(Boolean).length > 3) {
+      return { valid: false, name, phone, address, postalCode, message: "ที่อยู่ต้องไม่เกิน 3 บรรทัด กรุณาจัดบรรทัดใหม่" };
+    }
     return { valid: true, name, phone, address, postalCode, message: "" };
   }
 
@@ -330,20 +333,35 @@ class BjpLabelCard extends HTMLElement {
     const text = String(value || "").replace(/\r\n?/g, "\n").trim();
     if (!text) return { valid: false, name: "", phone: "", address: "", postalCode: "", message: "กรุณาวางข้อมูลลูกค้า" };
 
-    const phoneMatches = [...text.matchAll(/(?:\+66|0)(?:[\s-]*\d){8,9}/g)];
+    const lines = text.split("\n").map((line) => line.replace(/[ \t]+/g, " ").trim()).filter(Boolean);
+    const phonePattern = /(?<!\d)(?:\+66|0)(?:[ \t-]*\d){8,9}(?!\d)/g;
+    const phoneMatches = [];
+    lines.forEach((line, lineIndex) => {
+      for (const match of line.matchAll(phonePattern)) {
+        phoneMatches.push({ raw: match[0].trim(), lineIndex, index: match.index });
+      }
+    });
     if (!phoneMatches.length) return { valid: false, name: "", phone: "", address: text, postalCode: "", message: "ไม่พบเบอร์โทรศัพท์ กรุณาตรวจสอบข้อความ" };
-    const phoneRaw = phoneMatches[0][0].trim();
+    const selectedPhone = phoneMatches[0];
+    const phoneRaw = selectedPhone.raw;
     const phone = this.formatPhone(phoneRaw);
-    const withoutPhone = text.replace(phoneRaw, " ");
-    const postalMatches = [...withoutPhone.matchAll(/(?<!\d)\d{5}(?!\d)/g)];
-    let postalCode = postalMatches.length ? postalMatches[postalMatches.length - 1][0] : "";
+    const postalMatches = [];
+    lines.forEach((line, lineIndex) => {
+      for (const match of line.matchAll(/(?<!\d)\d{5}(?!\d)/g)) {
+        const overlapsPhone = lineIndex === selectedPhone.lineIndex &&
+          match.index < selectedPhone.index + phoneRaw.length &&
+          selectedPhone.index < match.index + match[0].length;
+        if (!overlapsPhone) postalMatches.push({ raw: match[0], lineIndex });
+      }
+    });
+    const selectedPostal = postalMatches[postalMatches.length - 1];
+    let postalCode = selectedPostal?.raw || "";
 
     const markers = ["โรงพยาบาล", "รพ.", "บริษัท", "หจก.", "ร้าน", "เลขที่", "หมู่บ้าน", "ถนน", "ซอย", "แขวง", "เขต", "ตำบล", "อำเภอ", "จังหวัด", "ต.", "อ.", "จ.", "ม."];
     const stopWords = new Set(["ส่ง", "บ้าน", "หมู่", "ถนน", "ซอย", "ตำบล", "อำเภอ", "จังหวัด", "โรงพยาบาล", "บริษัท", "ร้าน"]);
     const candidates = [];
-    const lines = text.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
-
     lines.forEach((original, lineIndex) => {
+      if (/^(?:ที่อยู่ผู้รับ|ข้อมูลผู้รับ)\s*:?$/.test(original)) return;
       let line = original.replace(/^\s*#?\s*ส่ง\s*/, "");
       const positions = markers.map((marker) => line.indexOf(marker)).filter((position) => position >= 0);
       const boundary = positions.length ? Math.min(...positions) : line.length;
@@ -361,24 +379,44 @@ class BjpLabelCard extends HTMLElement {
       const first = words[0][0];
       const second = words[1][0];
       if (first.length < 2 || second.length < 2 || stopWords.has(first) || stopWords.has(second)) return;
-      let score = 5 + (title ? 6 : 0) + (positions.length ? 0 : 3) + (original.includes(phoneRaw) ? 2 : 0) + (words.length === 2 ? 2 : 0);
+      let score = 5 + (title ? 6 : 0) + (positions.length ? 0 : 3) + (lineIndex === selectedPhone.lineIndex ? 2 : 0) + (words.length === 2 ? 2 : 0);
       const namePattern = title ? `${title}\\s*${first}\\s+${second}` : `${first}\\s+${second}`;
       candidates.push({ name: `${title}${first} ${second}`, namePattern, lineIndex, score });
     });
 
-    if (!candidates.length) return { valid: false, name: "", phone, address: withoutPhone.trim(), postalCode, message: "ไม่พบชื่อและนามสกุล กรุณาตรวจสอบข้อความ" };
+    if (!candidates.length) {
+      const addressStart = /(?<!\d)\d+(?:[/\-]\d+)*|(?:เลขที่|หมู่บ้าน|ถนน|ซอย|แขวง|เขต|ตำบล|อำเภอ|จังหวัด|ต\.|อ\.|จ\.|ม\.)/;
+      lines.some((original, lineIndex) => {
+        if (/^(?:ที่อยู่ผู้รับ|ข้อมูลผู้รับ)\s*:?$/.test(original)) return false;
+        let cleaned = original.replace(/^\s*#?\s*ส่ง\s*/, "");
+        if (lineIndex === selectedPhone.lineIndex) cleaned = cleaned.replace(phoneRaw, " ");
+        if (postalCode && lineIndex === selectedPostal?.lineIndex) {
+          cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
+        }
+        cleaned = cleaned.replace(/(?:^|\s)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*/g, " ").replace(/^[\s,:#-]+|[\s,:#-]+$/g, "").replace(/\s+/g, " ");
+        const boundary = cleaned.search(addressStart);
+        const name = cleaned.slice(0, boundary < 0 ? cleaned.length : boundary).trim();
+        if (name.length < 2 || !/[A-Za-zก-๙]/.test(name)) return false;
+        candidates.push({ name, lineIndex, score: 1, fallback: true });
+        return true;
+      });
+    }
+    if (!candidates.length) return { valid: false, name: "", phone, address: text, postalCode, message: "ไม่พบชื่อผู้รับ กรุณาตรวจสอบข้อความ" };
     candidates.sort((a, b) => b.score - a.score || a.lineIndex - b.lineIndex);
     const selected = candidates[0];
-    const address = lines.map((line, index) => {
+    const addressLines = lines.map((line, index) => {
+      if (/^(?:ที่อยู่ผู้รับ|ข้อมูลผู้รับ)\s*:?$/.test(line)) return "";
       let cleaned = line;
       if (index === selected.lineIndex) {
-        cleaned = cleaned.replace(/^\s*#?\s*ส่ง\s*/, "").replace(new RegExp(selected.namePattern), " ");
+        cleaned = cleaned.replace(/^\s*#?\s*ส่ง\s*/, "");
+        cleaned = selected.fallback ? cleaned.replace(selected.name, " ") : cleaned.replace(new RegExp(selected.namePattern), " ");
       }
-      cleaned = cleaned.replace(phoneRaw, " ");
-      cleaned = cleaned.replace(/(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*$/, " ");
-      if (postalCode) cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
+      if (index === selectedPhone.lineIndex) cleaned = cleaned.replace(phoneRaw, " ");
+      cleaned = cleaned.replace(/(?:^|\s)(?:โทร(?:ศัพท์)?|เบอร์(?:โทรศัพท์)?)\s*:?\s*/g, " ");
+      if (postalCode && index === selectedPostal?.lineIndex) cleaned = cleaned.replace(new RegExp(`(?<!\\d)${postalCode}(?!\\d)`), " ");
       return cleaned.replace(/^[\s,:#-]+|[\s,:#-]+$/g, "").replace(/\s+/g, " ");
-    }).filter(Boolean).join("\n");
+    }).filter(Boolean);
+    const address = this.wrapAddressLines(addressLines);
     const warnings = [];
     if (phoneMatches.length > 1) warnings.push("พบหลายเบอร์โทร กรุณาตรวจสอบ");
     if (candidates.length > 1 && candidates[1].score >= selected.score - 1) warnings.push("พบชื่อที่เป็นไปได้หลายรายการ กรุณาตรวจสอบ");
@@ -396,6 +434,49 @@ class BjpLabelCard extends HTMLElement {
       }
     }
     return { valid: true, name: selected.name, phone, address, postalCode, message: warnings.join(" • ") };
+  }
+
+  wrapAddressLines(lines, width = 34, maxLines = 3) {
+    const wrapped = [];
+    for (const sourceLine of lines) {
+      const chunks = sourceLine.split(/(?<=,)\s*/).map((chunk) => chunk.trim()).filter(Boolean);
+      for (const chunk of chunks) {
+        let current = "";
+        for (const word of chunk.split(/\s+/)) {
+          const proposed = `${current} ${word}`.trim();
+          if (current && proposed.length > width) {
+            wrapped.push(current);
+            current = word;
+          } else {
+            current = proposed;
+          }
+        }
+        if (current) wrapped.push(current);
+      }
+    }
+    if (wrapped.length === 1) {
+      const words = wrapped[0].split(/\s+/);
+      if (words.length > 1) {
+        let splitAt = 1;
+        let smallestDifference = Infinity;
+        for (let index = 1; index < words.length; index += 1) {
+          const difference = Math.abs(words.slice(0, index).join(" ").length - words.slice(index).join(" ").length);
+          if (difference < smallestDifference) {
+            splitAt = index;
+            smallestDifference = difference;
+          }
+        }
+        wrapped.splice(0, 1, words.slice(0, splitAt).join(" "), words.slice(splitAt).join(" "));
+      }
+    }
+    while (wrapped.length > maxLines) {
+      let mergeAt = 0;
+      for (let index = 1; index < wrapped.length - 1; index += 1) {
+        if (wrapped[index].length + wrapped[index + 1].length < wrapped[mergeAt].length + wrapped[mergeAt + 1].length) mergeAt = index;
+      }
+      wrapped.splice(mergeAt, 2, `${wrapped[mergeAt]} ${wrapped[mergeAt + 1]}`.trim());
+    }
+    return wrapped.join("\n");
   }
 
   lookupPostcodes(address) {

@@ -19,6 +19,10 @@ Last updated: 2026-06-22
 - Locked the print button while printing and after success until the data changes or is cleared.
 - Added offline postcode lookup with explicit warnings for inferred, ambiguous, and missing results.
 - Added parser regression tests for the supplied examples and reordered input.
+- Fixed phone detection so postal codes cannot join numbers on the next line.
+- Added organization-name fallback and balanced address output of up to three lines.
+- Removed the automatic `ส่ง` prefix from preview and printed labels.
+- Isolated the Niimbot service call behind an internal printer backend boundary.
 - Updated setup and service examples for the new workflow.
 
 ## Verification
