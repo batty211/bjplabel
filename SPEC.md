@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build an internal Home Assistant tool for managing customer label data and printing labels on a Niimbot B1 printer. The printer is already available in Home Assistant through `hass-niimbot`; BJP Label must reuse that integration.
+Build an internal Home Assistant tool for managing customer label data and printing labels on either a Niimbot printer or an Xprinter XP-420B. Niimbot continues to print through `hass-niimbot`; Xprinter prints over TCP using TSPL with image-based Thai rendering.
 
 ## Users
 
@@ -35,12 +35,14 @@ Phase 1 behavior:
 
 Printer:
 
-- Niimbot B1
+- Niimbot printers supported by `hass-niimbot`
+- Xprinter XP-420B over TCP port `9100`
 
 Integration:
 
 - Use `hass-niimbot`.
-- Call `niimbot.print` directly from the BJP Label custom integration.
+- Call `niimbot.print` directly when the selected backend is Niimbot.
+- Call the internal Xprinter TSPL backend directly when the selected backend is XP-420B.
 - Do not implement Bluetooth, raster, or printer protocol code.
 
 Label v1 for 50 x 80 mm paper:
@@ -100,6 +102,6 @@ Capabilities:
 - A normal dashboard user can open the Lovelace card and print without visiting add-on or settings pages.
 - The custom card works on mobile and tablet sizes.
 - The integration exposes `bjp_label.print_label`.
-- `bjp_label.print_label` calls `niimbot.print`.
+- `bjp_label.print_label` dispatches to the configured printer backend.
 - Thai name, phone, and address render with a Thai font and do not become square glyphs.
-- The first usable workflow is: open dashboard, paste customer text, inspect the automatic preview, tap `พิมพ์จริง`, and the label prints on Niimbot B1.
+- The first usable workflow is: open dashboard, paste customer text, inspect the automatic preview, tap `พิมพ์จริง`, and the label prints on the selected printer backend.

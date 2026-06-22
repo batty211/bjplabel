@@ -4,15 +4,23 @@
     "step": {
       "user": {
         "title": "ตั้งค่า BJP Label",
-        "description": "เลือกเครื่องพิมพ์ Niimbot และฟอนต์ภาษาไทยสำหรับฉลากลูกค้า",
+        "description": "เลือกเครื่องพิมพ์ ฉลาก และฟอนต์ภาษาไทยสำหรับพิมพ์ฉลากลูกค้า",
         "data": {
+          "printer_backend": "ประเภทเครื่องพิมพ์",
           "device_id": "เครื่องพิมพ์ Niimbot",
+          "host": "IP หรือโฮสต์ของ Xprinter",
+          "port": "พอร์ตของ Xprinter",
+          "label_size": "ขนาดฉลาก",
           "font": "ชื่อไฟล์ฟอนต์ภาษาไทย"
         },
         "data_description": {
+          "host": "ตัวอย่าง: 192.168.1.50",
           "font": "ตัวอย่าง: NotoSansThai-Regular.ttf"
         }
       }
+    },
+    "error": {
+      "required": "กรุณากรอกข้อมูลให้ครบตามประเภทเครื่องพิมพ์"
     },
     "abort": {
       "already_configured": "ตั้งค่า BJP Label ไว้แล้ว"

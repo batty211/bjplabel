@@ -1,6 +1,6 @@
 # BJP Label
 
-BJP Label is a Home Assistant project for entering customer details and printing Thai customer labels on a Niimbot B1 label printer.
+BJP Label is a Home Assistant project for entering customer details and printing Thai customer labels on either a Niimbot printer or an Xprinter XP-420B.
 
 The project is designed for household use through a normal Lovelace dashboard. The main user does not need to be a Home Assistant admin.
 
@@ -8,10 +8,11 @@ The project is designed for household use through a normal Lovelace dashboard. T
 
 - Home Assistant Lovelace custom card for the user interface.
 - HACS custom integration as the bridge between the card and Home Assistant services.
-- Existing `hass-niimbot` integration for actual printing.
+- Existing `hass-niimbot` integration for Niimbot printing.
+- Direct TCP `TSPL` printing for Xprinter XP-420B on port `9100`.
 - SQLite in a later phase for customer history.
 
-Printing intentionally goes through `niimbot.print`. This project does not create a new Niimbot driver.
+Niimbot printing intentionally goes through `niimbot.print`. Xprinter printing renders Thai text to an image first, then sends that bitmap over TSPL.
 
 ## Repository Layout
 
@@ -27,11 +28,11 @@ ACHITECTURE.md                   Typo-compatible pointer to ARCHITECTURE.md
 
 ## Phase 1 Setup
 
-1. Install and configure `hass-niimbot` in Home Assistant.
-2. Confirm the Niimbot B1 can print from Home Assistant.
+1. Install and configure `hass-niimbot` in Home Assistant if you will use a Niimbot printer.
+2. Or prepare the Xprinter XP-420B IP address and confirm it accepts TCP printing on port `9100`.
 3. Add this repository to HACS as a custom repository with category `Integration`.
 4. Install BJP Label from HACS and restart Home Assistant.
-5. Go to Settings / Devices & services, add `BJP Label`, then select the Niimbot printer and Thai font.
+5. Go to Settings / Devices & services, add `BJP Label`, then select the printer backend, label size, and Thai font.
 6. Open a dashboard as an administrator, choose Add card, and select `BJP Label`.
 
 The integration serves and registers its Lovelace JavaScript automatically. A normal
@@ -55,7 +56,7 @@ Then configure the card or service with:
 font: NotoSansThai-Regular.ttf
 ```
 
-The `hass-niimbot` integration supports referencing custom fonts placed in `www/fonts` or the integration font locations.
+The Niimbot path supports referencing custom fonts placed in `www/fonts` or the integration font locations. The Xprinter path uses the same Thai `.ttf` file to render the bitmap preview and print image.
 
 ## MVP Workflow
 
@@ -64,7 +65,7 @@ The `hass-niimbot` integration supports referencing custom fonts placed in `www/
 3. Check the detected name, formatted phone number, address, and postal code.
 4. Wait for the automatic no-print preview and inspect the label image.
 5. Tap `พิมพ์จริง` only after the preview is correct.
-6. The 50 x 80 mm label prints on the Niimbot B1.
+6. The label prints through the selected backend.
 
 The Print button stays disabled until the current data has a successful preview.
 Editing either text box invalidates the old preview and generates a new one.

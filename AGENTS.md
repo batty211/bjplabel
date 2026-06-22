@@ -9,7 +9,8 @@ BJP Label is a Home Assistant based customer label tool for in-house use. The pr
 - The main user interface must be a Lovelace dashboard card.
 - The regular user must not need Home Assistant admin access.
 - Do not build a Niimbot driver or protocol implementation.
-- Printing must go through the existing `hass-niimbot` integration and its `niimbot.print` service.
+- Niimbot printing must go through the existing `hass-niimbot` integration and its `niimbot.print` service.
+- Xprinter XP-420B printing may use direct TCP `TSPL` on port `9100` with image-based Thai rendering.
 - Backend or add-on work must run in the background only; it must not become the normal user UI.
 - Thai text must be supported end to end. Any printed label template must use a real Thai-capable `.ttf` font.
 
@@ -21,7 +22,7 @@ BJP Label is a Home Assistant based customer label tool for in-house use. The pr
 - Customer entry form.
 - Print button.
 - Save and print button may behave as print-only until persistence exists.
-- Integration service calls `niimbot.print`.
+- Integration service dispatches to the configured printer backend.
 - No SQLite persistence required.
 
 ### Phase 2

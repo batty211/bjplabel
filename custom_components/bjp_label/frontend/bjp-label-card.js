@@ -1,6 +1,10 @@
-const BJP_LABEL_VERSION = "0.3.3";
+const BJP_LABEL_VERSION = "0.4.0";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
+const BJP_LABEL_SIZE_PRESETS = {
+  "100x75": { width: 800, height: 600 },
+  "100x150": { width: 800, height: 1200 },
+};
 
 class BjpLabelCard extends HTMLElement {
   static getConfigElement() {
@@ -12,14 +16,19 @@ class BjpLabelCard extends HTMLElement {
   }
 
   setConfig(config) {
+    this.rawConfig = { ...config };
     this.config = {
       title: "พิมพ์ฉลากลูกค้า",
       width: 640,
       height: 384,
       density: 3,
       rotate: 90,
+      label_size: "100x75",
+      port: 9100,
+      show_label_size_selector: false,
       ...config,
     };
+    this.selectedLabelSize = this.config.label_size || "100x75";
     this.text = "";
     this.formattedText = "";
     this.formattedEdited = false;
@@ -54,8 +63,9 @@ class BjpLabelCard extends HTMLElement {
   render() {
     if (!this.config) return;
 
-    const previewWidth = this.positiveNumber(this.config.width, 640);
-    const previewHeight = this.positiveNumber(this.config.height, 384);
+    const preset = this.currentPreviewPreset();
+    const previewWidth = preset.width;
+    const previewHeight = preset.height;
     const previewImageWidth = (previewHeight / previewWidth) * 100;
     const previewImageHeight = (previewWidth / previewHeight) * 100;
 
@@ -72,6 +82,16 @@ class BjpLabelCard extends HTMLElement {
             <textarea id="formatted-text" rows="7" placeholder="ข้อความที่จัดรูปแบบแล้วจะแสดงที่นี่">${this.escape(this.formattedText)}</textarea>
             <div class="warning" data-warning aria-live="polite"></div>
           </div>
+
+          ${this.config.show_label_size_selector ? `
+            <div class="field">
+              <label for="label-size">ขนาดฉลาก</label>
+              <select id="label-size">
+                <option value="100x75" ${this.selectedLabelSize === "100x75" ? "selected" : ""}>100 x 75 มม.</option>
+                <option value="100x150" ${this.selectedLabelSize === "100x150" ? "selected" : ""}>100 x 150 มม.</option>
+              </select>
+            </div>
+          ` : ""}
 
           <section class="preview is-hidden" data-preview aria-hidden="true">
             <h3>ตัวอย่างฉลากก่อนพิมพ์</h3>
@@ -136,6 +156,21 @@ class BjpLabelCard extends HTMLElement {
           font-size: 18px;
           font-weight: 700;
           line-height: 1.4;
+        }
+        .field {
+          margin-top: 18px;
+        }
+        select {
+          box-sizing: border-box;
+          width: 100%;
+          min-height: 62px;
+          padding: 12px 14px;
+          border: 2px solid var(--divider-color);
+          border-radius: 10px;
+          background: var(--card-background-color);
+          color: var(--primary-text-color);
+          font: inherit;
+          font-size: 21px;
         }
         .preview {
           margin-top: 18px;
@@ -261,6 +296,16 @@ class BjpLabelCard extends HTMLElement {
       this.updateForm();
       this.schedulePreview();
     });
+    const labelSize = this.querySelector("#label-size");
+    if (labelSize) {
+      labelSize.addEventListener("change", (event) => {
+        this.selectedLabelSize = event.target.value;
+        this.resetPrintState();
+        this.invalidatePreview();
+        this.render();
+        this.schedulePreview();
+      });
+    }
     this.querySelectorAll("button").forEach((button) => {
       button.addEventListener("click", () => this.handleAction(button.dataset.action));
     });
@@ -426,6 +471,7 @@ class BjpLabelCard extends HTMLElement {
   }
 
   serviceData(preview = false) {
+    const labelSize = this.selectedLabelSize || this.config.label_size || "100x75";
     const data = {
       name: this.formatted.name,
       phone: this.formatted.phone,
@@ -437,9 +483,23 @@ class BjpLabelCard extends HTMLElement {
       rotate: Number(this.config.rotate),
       preview: Boolean(preview),
     };
-    if (this.config.device_id) data.device_id = this.config.device_id;
-    if (this.config.font) data.font = this.config.font;
+    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "printer_backend")) data.printer_backend = this.config.printer_backend;
+    if (this.config.show_label_size_selector || Object.prototype.hasOwnProperty.call(this.rawConfig, "label_size")) data.label_size = labelSize;
+    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "device_id")) data.device_id = this.config.device_id;
+    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "font")) data.font = this.config.font;
+    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "host")) data.host = this.config.host;
+    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "port")) data.port = Number(this.config.port);
     return data;
+  }
+
+  currentPreviewPreset() {
+    if (this.config.printer_backend === "xprinter_tspl") {
+      return BJP_LABEL_SIZE_PRESETS[this.selectedLabelSize || this.config.label_size] || BJP_LABEL_SIZE_PRESETS["100x75"];
+    }
+    return {
+      width: this.positiveNumber(this.config.width, 640),
+      height: this.positiveNumber(this.config.height, 384),
+    };
   }
 
   positiveNumber(value, fallback) {

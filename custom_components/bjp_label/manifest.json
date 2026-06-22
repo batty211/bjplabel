@@ -3,11 +3,11 @@
   "name": "BJP Label",
   "codeowners": [],
   "config_flow": true,
-  "dependencies": ["frontend", "niimbot"],
+  "dependencies": ["frontend"],
   "documentation": "https://github.com/batty211/bjplabel",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/batty211/bjplabel/issues",
-  "requirements": ["phonenumbers==9.0.26"],
-  "version": "0.3.3"
+  "requirements": ["phonenumbers==9.0.26", "Pillow==11.2.1"],
+  "version": "0.4.0"
 }

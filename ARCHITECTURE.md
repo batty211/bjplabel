@@ -11,7 +11,7 @@ BJP Label has three layers:
 The first production path is intentionally short:
 
 ```text
-Lovelace card -> bjp_label.print_label -> niimbot.print -> Niimbot B1
+Lovelace card -> bjp_label.print_label -> selected printer backend
 ```
 
 ## Frontend
@@ -57,25 +57,28 @@ Responsibilities:
 
 - Register BJP Label services.
 - Validate service data.
-- Build the Niimbot label payload.
-- Call `niimbot.print`.
+- Build the Niimbot label payload when Niimbot is selected.
+- Render a Thai bitmap and send TSPL over TCP when Xprinter is selected.
 - Keep printer target configurable.
 
-The integration must not implement Niimbot transport, Bluetooth, rasterization, or printer protocol code.
+The integration must not implement Niimbot transport or Bluetooth code. Xprinter support is limited to the already-configured TCP printer path.
 
 The public `bjp_label.print_label` service is the printer-independent boundary used
 by the Lovelace card. Rendering and the internal printer backend are kept separate,
-so a future XP-420B backend can be added after selecting its Home Assistant print
-integration without changing the normal card workflow. Phase 1 continues to use
-only `niimbot.print`.
+so multiple printer backends can coexist without changing the normal card workflow.
 
 `bjp_label.print_label` supports an optional service response. Preview calls return
-`{"image": "data:image/..."}` from `hass-niimbot`; the card displays that data URL
-directly and does not require a separate camera or image entity.
+`{"image": "data:image/..."}` from the selected backend; the card displays that data
+URL directly and does not require a separate camera or image entity.
 
 ## Printing
 
-BJP Label calls the existing `hass-niimbot` service:
+BJP Label supports two print paths:
+
+- Niimbot through the existing `hass-niimbot` service.
+- Xprinter XP-420B through direct TCP `TSPL` with a rendered bitmap.
+
+Niimbot example:
 
 ```yaml
 action: niimbot.print

@@ -4,15 +4,23 @@
     "step": {
       "user": {
         "title": "Set up BJP Label",
-        "description": "Select the Niimbot printer and Thai font used for customer labels.",
+        "description": "Select the printer backend, label size, and Thai font used for customer labels.",
         "data": {
+          "printer_backend": "Printer backend",
           "device_id": "Niimbot printer",
+          "host": "Xprinter host or IP",
+          "port": "Xprinter port",
+          "label_size": "Label size",
           "font": "Thai font filename"
         },
         "data_description": {
+          "host": "For example: 192.168.1.50",
           "font": "For example: NotoSansThai-Regular.ttf"
         }
       }
+    },
+    "error": {
+      "required": "Please fill in the fields required for the selected printer."
     },
     "abort": {
       "already_configured": "BJP Label is already configured."

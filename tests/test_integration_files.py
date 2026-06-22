@@ -47,7 +47,9 @@ class IntegrationPackageTests(unittest.TestCase):
     def test_printer_backend_keeps_niimbot_behind_integration_service(self):
         integration_source = (_INTEGRATION / "__init__.py").read_text(encoding="utf-8")
         printer_source = (_INTEGRATION / "printer.py").read_text(encoding="utf-8")
-        self.assertIn("async_print_niimbot", integration_source)
+        self.assertIn("async_dispatch_print_label", integration_source)
+        self.assertIn("async_print_niimbot", printer_source)
+        self.assertIn("async_print_xprinter_tspl", printer_source)
         self.assertIn("SupportsResponse.OPTIONAL", integration_source)
         self.assertIn('"niimbot"', printer_source)
         self.assertIn('"print"', printer_source)

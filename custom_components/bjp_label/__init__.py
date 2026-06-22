@@ -21,8 +21,11 @@ from homeassistant.exceptions import ServiceValidationError
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
-    CONF_DEVICE_ID,
     CONF_FONT,
+    CONF_HOST,
+    CONF_LABEL_SIZE,
+    CONF_PORT,
+    CONF_PRINTER_BACKEND,
     DEFAULT_DENSITY,
     DEFAULT_FONT,
     DEFAULT_HEIGHT,
@@ -30,15 +33,16 @@ from .const import (
     DEFAULT_WIDTH,
     DOMAIN,
     FRONTEND_URL,
+    LABEL_SIZES,
+    PRINTER_BACKENDS,
     SERVICE_PRINT_CUSTOMER,
     SERVICE_PRINT_LABEL,
     SERVICE_SAVE_CUSTOMER,
     SERVICE_SEARCH_CUSTOMERS,
     VERSION,
 )
-from .label import build_label_payload
 from .parser import ParseError, ParsedLabel, format_address_lines, parse_customer_text
-from .printer import async_print_niimbot
+from .printer import async_print_label as async_dispatch_print_label, resolve_print_config
 
 _LOGGER = logging.getLogger(__name__)
 _FRONTEND_PATH = Path(__file__).parent / "frontend"
@@ -52,6 +56,12 @@ PRINT_LABEL_SCHEMA = vol.Schema(
         vol.Optional("note", default=""): cv.string,
         vol.Optional("postal_code", default=""): cv.string,
         vol.Optional("font"): cv.string,
+        vol.Optional(CONF_PRINTER_BACKEND): vol.In(PRINTER_BACKENDS),
+        vol.Optional(CONF_LABEL_SIZE): vol.In(LABEL_SIZES),
+        vol.Optional(CONF_HOST): cv.string,
+        vol.Optional(CONF_PORT): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=65535)
+        ),
         vol.Optional("width", default=DEFAULT_WIDTH): vol.All(
             vol.Coerce(int), vol.Range(min=10, max=1600)
         ),
@@ -104,24 +114,21 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         target_device = call_target.get("device_id") if isinstance(call_target, dict) else None
         if isinstance(target_device, list):
             target_device = target_device[0] if target_device else None
-        device_id = (
-            data.get("device_id") or target_device or settings.get(CONF_DEVICE_ID)
-        )
-        if not device_id:
-            raise ServiceValidationError("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Niimbot")
-
-        response = await async_print_niimbot(
-            hass,
-            payload=build_label_payload(parsed, font),
-            width=data["width"],
-            height=data["height"],
-            density=data["density"],
-            rotate=data["rotate"],
-            preview=data["preview"],
-            device_id=device_id,
-            context=call.context,
-            return_response=call.return_response,
-        )
+        service_data = dict(data)
+        if target_device and "device_id" not in service_data:
+            service_data["device_id"] = target_device
+        try:
+            response = await async_dispatch_print_label(
+                hass,
+                parsed=parsed,
+                font=font,
+                config=resolve_print_config(service_data, settings),
+                preview=bool(data["preview"]),
+                context=call.context,
+                return_response=call.return_response,
+            )
+        except (ValueError, RuntimeError) as err:
+            raise ServiceValidationError(str(err)) from err
         if not call.return_response:
             return None
         image = response.get("image") if isinstance(response, dict) else None

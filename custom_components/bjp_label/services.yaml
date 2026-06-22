@@ -1,6 +1,6 @@
 print_label:
   name: Print customer label
-  description: Parse Thai customer text, preview it, or print it through hass-niimbot. Preview calls can return an image data URL.
+  description: Parse Thai customer text, preview it, or print it through Niimbot or Xprinter. Preview calls can return an image data URL.
   fields:
     text:
       name: Customer text
@@ -43,13 +43,54 @@ print_label:
           multiline: true
     font:
       name: Thai font
-      description: Thai-capable .ttf filename available to hass-niimbot.
+      description: Thai-capable .ttf filename or path used to render the label.
       required: false
       default: NotoSansThai-Regular.ttf
       selector:
         text:
+    printer_backend:
+      name: Printer backend
+      description: Optional override for the printer backend selected during BJP Label setup.
+      required: false
+      default: niimbot
+      selector:
+        select:
+          options:
+            - label: Niimbot
+              value: niimbot
+            - label: Xprinter XP-420B (TSPL)
+              value: xprinter_tspl
+    label_size:
+      name: Label size
+      description: Size preset used for Xprinter rendering and TSPL output.
+      required: false
+      default: 100x75
+      selector:
+        select:
+          options:
+            - label: 100 x 75 mm
+              value: 100x75
+            - label: 100 x 150 mm
+              value: 100x150
+    host:
+      name: Xprinter host
+      description: Optional override for the Xprinter IP or host selected during BJP Label setup.
+      required: false
+      selector:
+        text:
+    port:
+      name: Xprinter port
+      description: Optional override for the Xprinter TCP port.
+      required: false
+      default: 9100
+      selector:
+        number:
+          min: 1
+          max: 65535
+          mode: box
     width:
       name: Label width
+      description: Niimbot canvas width in pixels.
       required: false
       default: 640
       selector:
@@ -59,6 +100,7 @@ print_label:
           mode: box
     height:
       name: Label height
+      description: Niimbot canvas height in pixels.
       required: false
       default: 384
       selector:
@@ -68,6 +110,7 @@ print_label:
           mode: box
     density:
       name: Density
+      description: Niimbot print density.
       required: false
       default: 3
       selector:
@@ -77,6 +120,7 @@ print_label:
           mode: slider
     rotate:
       name: Rotation
+      description: Niimbot preview and print rotation.
       required: false
       default: 90
       selector:
