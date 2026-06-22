@@ -1,4 +1,7 @@
 DOMAIN = "bjp_label"
+VERSION = "0.3.0"
+
+FRONTEND_URL = "/bjp_label"
 
 CONF_DEVICE_ID = "device_id"
 CONF_FONT = "font"

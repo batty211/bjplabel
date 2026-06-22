@@ -16,8 +16,7 @@ Printing intentionally goes through `niimbot.print`. This project does not creat
 ## Repository Layout
 
 ```text
-custom_components/bjp_label/     Home Assistant custom integration
-www/bjp-label-card/              Lovelace custom card
+custom_components/bjp_label/     Home Assistant integration and Lovelace card
 backend/                         Phase 2 backend and SQLite planning
 examples/                        Dashboard and service examples
 AGENTS.md                        Agent and contributor guidance
@@ -33,15 +32,12 @@ ACHITECTURE.md                   Typo-compatible pointer to ARCHITECTURE.md
 3. Add this repository to HACS as a custom repository with category `Integration`.
 4. Install BJP Label from HACS and restart Home Assistant.
 5. Go to Settings / Devices & services, add `BJP Label`, then select the Niimbot printer and Thai font.
-6. Copy `www/bjp-label-card/bjp-label-card.js` into Home Assistant `/config/www/bjp-label-card/`.
-7. Add the card resource to Lovelace:
+6. Open a dashboard as an administrator, choose Add card, and select `BJP Label`.
 
-```yaml
-url: /local/bjp-label-card/bjp-label-card.js?v=0.2.1
-type: module
-```
-
-8. Add a card to a dashboard using `examples/lovelace-card.yaml`.
+The integration serves and registers its Lovelace JavaScript automatically. A normal
+user only opens the dashboard and does not need administrator access. If an older
+version was installed manually, remove the `/local/bjp-label-card/...` Resource once
+to avoid loading two copies of the card.
 
 Manual install is also possible by copying `custom_components/bjp_label` into Home Assistant `custom_components`.
 
@@ -76,6 +72,7 @@ This repository contains the Phase 1 printing workflow:
 - Documentation.
 - UI-based Home Assistant setup and service registration.
 - Single-input Lovelace card with lightweight Thai customer text parsing.
+- Offline postcode lookup from Thai subdistrict, district, and province names.
 - Phase 2 SQLite schema.
 
 Phase 1 persistence is intentionally not implemented yet.

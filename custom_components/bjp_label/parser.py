@@ -8,6 +8,8 @@ import re
 import phonenumbers
 from phonenumbers import PhoneNumberFormat, PhoneNumberMatcher
 
+from .postcode import lookup_postcodes
+
 _THAI_WORD = re.compile(r"[ก-๙]+")
 _POSTAL_CODE = re.compile(r"(?<!\d)(\d{5})(?!\d)")
 _SEND_PREFIX = re.compile(r"^\s*#?\s*ส่ง\s*")
@@ -114,11 +116,26 @@ def parse_customer_text(text: str) -> ParsedLabel:
         selected_phone.raw_string,
         postal_match.group(0) if postal_match else "",
     )
+    postal_code = postal_match.group(1) if postal_match else ""
+    if not postal_code:
+        possible_postcodes = lookup_postcodes(address)
+        if len(possible_postcodes) == 1:
+            postal_code = possible_postcodes[0]
+            warnings.append(f"เติมรหัสไปรษณีย์ {postal_code} ให้อัตโนมัติ กรุณาตรวจสอบ")
+        elif len(possible_postcodes) > 1:
+            preview = ", ".join(possible_postcodes[:4])
+            suffix = "…" if len(possible_postcodes) > 4 else ""
+            warnings.append(
+                f"พบรหัสไปรษณีย์ได้หลายค่า: {preview}{suffix} กรุณาเลือกและกรอกเอง"
+            )
+        else:
+            warnings.append("ไม่พบรหัสไปรษณีย์ กรุณากรอกเอง")
+
     return ParsedLabel(
         name=selected_name.name,
         phone=phone,
         address=address,
-        postal_code=postal_match.group(1) if postal_match else "",
+        postal_code=postal_code,
         warnings=tuple(warnings),
     )
 

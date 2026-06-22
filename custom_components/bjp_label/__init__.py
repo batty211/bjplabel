@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 import voluptuous as vol
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
@@ -21,15 +24,18 @@ from .const import (
     DEFAULT_ROTATE,
     DEFAULT_WIDTH,
     DOMAIN,
+    FRONTEND_URL,
     SERVICE_PRINT_CUSTOMER,
     SERVICE_PRINT_LABEL,
     SERVICE_SAVE_CUSTOMER,
     SERVICE_SEARCH_CUSTOMERS,
+    VERSION,
 )
 from .label import build_label_payload
 from .parser import ParseError, ParsedLabel, parse_customer_text
 
 _LOGGER = logging.getLogger(__name__)
+_FRONTEND_PATH = Path(__file__).parent / "frontend"
 
 PRINT_LABEL_SCHEMA = vol.Schema(
     {
@@ -72,6 +78,12 @@ PRINT_CUSTOMER_SCHEMA = vol.Schema({vol.Required("customer_id"): vol.Coerce(int)
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Initialize shared integration data and register services."""
     hass.data.setdefault(DOMAIN, {})
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(FRONTEND_URL, str(_FRONTEND_PATH), True)]
+    )
+    add_extra_js_url(
+        hass, f"{FRONTEND_URL}/bjp-label-card.js?v={VERSION}"
+    )
 
     async def async_print_label(call: ServiceCall) -> None:
         data = call.data

@@ -1,16 +1,32 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 global.HTMLElement = class {};
 let Card;
+let registeredCard;
 global.customElements = {
+  get: () => registeredCard,
   define: (_name, cardClass) => {
     Card = cardClass;
+    registeredCard = cardClass;
   },
 };
 global.window = {};
-require("../www/bjp-label-card/bjp-label-card.js");
+const cardModule = require.resolve("../custom_components/bjp_label/frontend/bjp-label-card.js");
+require(cardModule);
+delete require.cache[cardModule];
+require(cardModule);
+assert.equal(window.customCards.length, 1);
 
 const card = new Card();
+Card.postcodeRows = [
+  { s: "ธรรมศาลา", d: "เมืองนครปฐม", p: "นครปฐม", z: 73000 },
+  { s: "พระปฐมเจดีย์", d: "เมืองนครปฐม", p: "นครปฐม", z: 73000 },
+  { s: "บางเลน", d: "บางเลน", p: "นครปฐม", z: 73130 },
+  { s: "คอนสาร", d: "คอนสาร", p: "ชัยภูมิ", z: 36180 },
+  { s: "ดงกลาง", d: "คอนสาร", p: "ชัยภูมิ", z: 36180 },
+];
 card.config = {
   width: 640,
   height: 384,
@@ -26,6 +42,21 @@ assert.equal(
   card.formatParsed(parsed),
   "ส่ง เทพฤทธิ์ ดีเจริญ\n081-754-4374\n14/23 ม.4 ต.ธรรมศาลา อ.เมือง จ.นครปฐม\n73000",
 );
+
+const inferred = card.parseText(
+  "เทพฤทธิ์ ดีเจริญ 0817544374\n14/23 ม.4 ต.ธรรมศาลา อ.เมือง จ.นครปฐม",
+);
+assert.equal(inferred.postalCode, "73000");
+assert.match(inferred.message, /เติมรหัสไปรษณีย์ 73000/);
+
+const ambiguous = card.parseText("สมชาย รักดี 0812345678\nจ.นครปฐม");
+assert.equal(ambiguous.postalCode, "");
+assert.match(ambiguous.message, /หลายค่า/);
+
+const organizationAddress = card.parseText(
+  "ส่งมนูญ เบญจพรหม โรงพยาบาลส่งเสริมสุขภาพตำบลบ้านดงกลาง อ.คอนสาร จ.ชัยภูมิ 0818719257",
+);
+assert.equal(organizationAddress.postalCode, "36180");
 
 card.formattedText = [
   "ส่ง นายสมชาย รักดี",
@@ -63,4 +94,48 @@ assert.equal(
   false,
 );
 
-console.log("card tests passed");
+async function testPrintLock() {
+  let calls = 0;
+  let finishPrint;
+  const printCard = new Card();
+  printCard.config = card.config;
+  printCard.formatted = card.parseFormattedText(
+    "ส่ง สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
+  );
+  printCard.updateForm = () => {};
+  printCard._hass = {
+    callService: () => {
+      calls += 1;
+      return new Promise((resolve) => { finishPrint = resolve; });
+    },
+  };
+  const firstPrint = printCard.handleAction("print");
+  const duplicatePrint = printCard.handleAction("print");
+  assert.equal(calls, 1);
+  assert.equal(printCard.isPrinting, true);
+  await duplicatePrint;
+  finishPrint();
+  await firstPrint;
+  assert.equal(printCard.status, "พิมพ์เสร็จแล้ว");
+  assert.equal(printCard.printLocked, true);
+
+  await printCard.handleAction("print");
+  assert.equal(calls, 1);
+  printCard.resetPrintState();
+  assert.equal(printCard.printLocked, false);
+
+  printCard._hass.callService = async () => {
+    calls += 1;
+    throw new Error("printer unavailable");
+  };
+  await printCard.handleAction("print");
+  assert.match(printCard.status, /พิมพ์ไม่สำเร็จ/);
+  assert.equal(printCard.printLocked, false);
+  assert.equal(printCard.isPrinting, false);
+}
+
+const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/manifest.json")));
+const cardSource = fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/frontend/bjp-label-card.js"), "utf8");
+assert.match(cardSource, new RegExp(`BJP_LABEL_VERSION = ["']${manifest.version}["']`));
+
+testPrintLock().then(() => console.log("card tests passed"));

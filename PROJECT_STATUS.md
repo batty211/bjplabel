@@ -14,6 +14,10 @@ Last updated: 2026-06-22
 - Printing is disabled when the card cannot detect a name or phone number.
 - Updated the default B1 layout to 640 x 384 pixels before rotation, density 3, rotation 90.
 - Added an editable formatted-label textarea; its contents are authoritative when printing.
+- Bundled and auto-registered the Lovelace card; manual Resource setup is no longer required.
+- Added visible version and ready, connecting, printing, completed, and error states.
+- Locked the print button while printing and after success until the data changes or is cleared.
+- Added offline postcode lookup with explicit warnings for inferred, ambiguous, and missing results.
 - Added parser regression tests for the supplied examples and reordered input.
 - Updated setup and service examples for the new workflow.
 
@@ -28,7 +32,8 @@ Last updated: 2026-06-22
 - Install and configure `hass-niimbot` first.
 - Install or update BJP Label through HACS, restart Home Assistant, then add BJP Label under Devices & services.
 - Put a Thai `.ttf` font such as `NotoSansThai-Regular.ttf` in a location supported by `hass-niimbot`.
-- The Lovelace JavaScript file still needs to be copied to `/config/www/bjp-label-card/` and registered as `/local/bjp-label-card/bjp-label-card.js`.
+- Add `BJP Label` from the dashboard card picker after restarting Home Assistant.
+- Remove any old `/local/bjp-label-card/...` Resource left from a manual installation.
 
 ## Next Work
 

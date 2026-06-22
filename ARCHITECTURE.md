@@ -16,11 +16,15 @@ Lovelace card -> bjp_label.print_label -> niimbot.print -> Niimbot B1
 
 ## Frontend
 
-The frontend is a Lovelace custom card loaded from:
+The frontend is bundled inside the custom integration at:
 
 ```text
-/config/www/bjp-label-card/bjp-label-card.js
+custom_components/bjp_label/frontend/bjp-label-card.js
 ```
+
+During Home Assistant startup the integration exposes this directory at
+`/bjp_label` and registers the JavaScript module with Lovelace. The card appears
+in the dashboard card picker without a manually configured Resource.
 
 Responsibilities:
 

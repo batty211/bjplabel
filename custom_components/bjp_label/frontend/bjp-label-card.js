@@ -1,3 +1,6 @@
+const BJP_LABEL_VERSION = "0.3.0";
+const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
+
 class BjpLabelCard extends HTMLElement {
   static getConfigElement() {
     return document.createElement("hui-generic-card-editor");
@@ -18,11 +21,16 @@ class BjpLabelCard extends HTMLElement {
     };
     this.text = "";
     this.formattedText = "";
+    this.formattedEdited = false;
     this.status = "";
+    this.statusType = "ready";
+    this.isPrinting = false;
+    this.printLocked = false;
     this.parsed = this.parseText("");
     this.formatted = this.parseFormattedText("");
     this.parseWarning = "";
     this.render();
+    this.loadPostcodes();
   }
 
   set hass(hass) {
@@ -55,6 +63,7 @@ class BjpLabelCard extends HTMLElement {
             <button class="secondary" data-action="clear">ล้างข้อมูล</button>
           </div>
           <p class="status" aria-live="polite"></p>
+          <p class="version">BJP Label v${BJP_LABEL_VERSION}</p>
         </div>
       </ha-card>
       <style>
@@ -138,6 +147,15 @@ class BjpLabelCard extends HTMLElement {
           font-size: 18px;
           line-height: 1.4;
         }
+        .status[data-type="printing"] { color: var(--primary-color); font-weight: 700; }
+        .status[data-type="done"] { color: var(--success-color, #2e7d32); font-weight: 700; }
+        .status[data-type="error"] { color: var(--error-color); font-weight: 700; }
+        .version {
+          margin: 8px 0 0;
+          color: var(--secondary-text-color);
+          font-size: 14px;
+          text-align: right;
+        }
         @media (max-width: 520px) {
           .card { padding: 16px; }
           .actions { grid-template-columns: 1fr; }
@@ -147,17 +165,19 @@ class BjpLabelCard extends HTMLElement {
 
     this.querySelector("#customer-text").addEventListener("input", (event) => {
       this.text = event.target.value;
-      this.status = "";
+      this.resetPrintState();
       this.parsed = this.parseText(this.text);
       this.parseWarning = this.parsed.message;
       this.formattedText = this.formatParsed(this.parsed);
+      this.formattedEdited = false;
       this.formatted = this.parseFormattedText(this.formattedText);
       this.querySelector("#formatted-text").value = this.formattedText;
       this.updateForm();
     });
     this.querySelector("#formatted-text").addEventListener("input", (event) => {
       this.formattedText = event.target.value;
-      this.status = "";
+      this.formattedEdited = true;
+      this.resetPrintState();
       this.parseWarning = "";
       this.formatted = this.parseFormattedText(this.formattedText);
       this.updateForm();
@@ -170,30 +190,83 @@ class BjpLabelCard extends HTMLElement {
 
   updateForm() {
     this.querySelector("[data-warning]").textContent = this.parseWarning || this.formatted.message;
-    this.querySelector('[data-action="print"]').disabled = !this.formatted.valid;
-    this.querySelector(".status").textContent = this.status;
+    const printButton = this.querySelector('[data-action="print"]');
+    printButton.disabled = !this.formatted.valid || this.isPrinting || this.printLocked;
+    printButton.textContent = this.isPrinting ? "กำลังพิมพ์..." : this.printLocked ? "พิมพ์แล้ว" : "พิมพ์";
+    const status = this.querySelector(".status");
+    status.textContent = this.status || (this.formatted.valid ? "พร้อมพิมพ์" : "รอข้อมูล");
+    status.dataset.type = this.statusType;
   }
 
   async handleAction(action) {
     if (action === "clear") {
       this.text = "";
       this.formattedText = "";
+      this.formattedEdited = false;
       this.status = "ล้างข้อมูลแล้ว";
+      this.statusType = "ready";
+      this.isPrinting = false;
+      this.printLocked = false;
       this.parsed = this.parseText("");
       this.formatted = this.parseFormattedText("");
       this.parseWarning = "";
       this.render();
       return;
     }
-    if (!this.formatted.valid || !this._hass) return;
+    if (!this.formatted.valid || !this._hass || this.isPrinting || this.printLocked) return;
 
+    this.isPrinting = true;
+    this.status = "กำลังเชื่อมต่อเครื่องพิมพ์...";
+    this.statusType = "printing";
+    this.updateForm();
     try {
-      await this._hass.callService("bjp_label", "print_label", this.serviceData());
-      this.status = "ส่งพิมพ์แล้ว";
+      if (typeof requestAnimationFrame === "function") {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      const printRequest = this._hass.callService("bjp_label", "print_label", this.serviceData());
+      this.status = "กำลังพิมพ์...";
+      this.updateForm();
+      await printRequest;
+      this.status = "พิมพ์เสร็จแล้ว";
+      this.statusType = "done";
+      this.printLocked = true;
     } catch (error) {
       this.status = `พิมพ์ไม่สำเร็จ: ${this.friendlyError(error)}`;
+      this.statusType = "error";
+      this.printLocked = false;
+    } finally {
+      this.isPrinting = false;
     }
     this.updateForm();
+  }
+
+  resetPrintState() {
+    this.status = "";
+    this.statusType = "ready";
+    this.printLocked = false;
+  }
+
+  async loadPostcodes() {
+    if (BjpLabelCard.postcodeRows) return;
+    try {
+      if (!BjpLabelCard.postcodePromise) {
+        BjpLabelCard.postcodePromise = fetch(BJP_LABEL_POSTCODE_URL).then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        });
+      }
+      BjpLabelCard.postcodeRows = await BjpLabelCard.postcodePromise;
+      if (this.text && !this.formattedEdited) {
+        this.parsed = this.parseText(this.text);
+        this.parseWarning = this.parsed.message;
+        this.formattedText = this.formatParsed(this.parsed);
+        this.formatted = this.parseFormattedText(this.formattedText);
+        this.render();
+      }
+    } catch (error) {
+      BjpLabelCard.postcodePromise = undefined;
+      console.warn("BJP Label: โหลดข้อมูลรหัสไปรษณีย์ไม่สำเร็จ", error);
+    }
   }
 
   serviceData() {
@@ -263,7 +336,7 @@ class BjpLabelCard extends HTMLElement {
     const phone = this.formatPhone(phoneRaw);
     const withoutPhone = text.replace(phoneRaw, " ");
     const postalMatches = [...withoutPhone.matchAll(/(?<!\d)\d{5}(?!\d)/g)];
-    const postalCode = postalMatches.length ? postalMatches[postalMatches.length - 1][0] : "";
+    let postalCode = postalMatches.length ? postalMatches[postalMatches.length - 1][0] : "";
 
     const markers = ["โรงพยาบาล", "รพ.", "บริษัท", "หจก.", "ร้าน", "เลขที่", "หมู่บ้าน", "ถนน", "ซอย", "แขวง", "เขต", "ตำบล", "อำเภอ", "จังหวัด", "ต.", "อ.", "จ.", "ม."];
     const stopWords = new Set(["ส่ง", "บ้าน", "หมู่", "ถนน", "ซอย", "ตำบล", "อำเภอ", "จังหวัด", "โรงพยาบาล", "บริษัท", "ร้าน"]);
@@ -309,7 +382,79 @@ class BjpLabelCard extends HTMLElement {
     const warnings = [];
     if (phoneMatches.length > 1) warnings.push("พบหลายเบอร์โทร กรุณาตรวจสอบ");
     if (candidates.length > 1 && candidates[1].score >= selected.score - 1) warnings.push("พบชื่อที่เป็นไปได้หลายรายการ กรุณาตรวจสอบ");
+    if (!postalCode) {
+      const possiblePostcodes = this.lookupPostcodes(address);
+      if (possiblePostcodes.length === 1) {
+        postalCode = possiblePostcodes[0];
+        warnings.push(`เติมรหัสไปรษณีย์ ${postalCode} ให้อัตโนมัติ กรุณาตรวจสอบ`);
+      } else if (possiblePostcodes.length > 1) {
+        const preview = possiblePostcodes.slice(0, 4).join(", ");
+        const suffix = possiblePostcodes.length > 4 ? "…" : "";
+        warnings.push(`พบรหัสไปรษณีย์ได้หลายค่า: ${preview}${suffix} กรุณาเลือกและกรอกเอง`);
+      } else if (BjpLabelCard.postcodeRows) {
+        warnings.push("ไม่พบรหัสไปรษณีย์ กรุณากรอกเอง");
+      }
+    }
     return { valid: true, name: selected.name, phone, address, postalCode, message: warnings.join(" • ") };
+  }
+
+  lookupPostcodes(address) {
+    const rows = BjpLabelCard.postcodeRows || [];
+    const text = this.normalizeLocation(address);
+    if (!text || !rows.length) return [];
+
+    const extract = (pattern) => text.match(pattern)?.[1]?.replace(/[ .]+$/g, "") || "";
+    const province = extract(/(?:จังหวัด|จ\.)\s*([^\s,]+)/);
+    const district = extract(/(?:อำเภอ|อ\.|เขต)\s*([^\s,]+)/);
+    const subdistrict = extract(/(?:ตำบล|ต\.|แขวง)\s*([^\s,]+)/);
+    let matches = rows.filter((row) =>
+      (!province || this.locationMatches(province, row.p, "province")) &&
+      (!district || this.locationMatches(district, row.d, "district")) &&
+      (!subdistrict || this.locationMatches(subdistrict, row.s, "subdistrict"))
+    );
+
+    if (!matches.length && subdistrict && (district || province)) {
+      matches = rows.filter((row) =>
+        (!province || this.locationMatches(province, row.p, "province")) &&
+        (!district || this.locationMatches(district, row.d, "district"))
+      );
+    }
+
+    if (!province && !district && !subdistrict) {
+      matches = rows.filter((row) => [
+        [row.s, "subdistrict"],
+        [row.d, "district"],
+        [row.p, "province"],
+      ].filter(([name, kind]) => {
+        const plain = this.plainLocation(name, kind);
+        return plain.length >= 3 && text.includes(plain);
+      }).length >= 2);
+    }
+    return [...new Set(matches.map((row) => String(row.z)))];
+  }
+
+  normalizeLocation(value) {
+    return String(value || "").replaceAll("กรุงเทพฯ", "กรุงเทพมหานคร").replace(/\s+/g, " ").trim();
+  }
+
+  plainLocation(value, kind) {
+    const prefixes = {
+      province: ["จังหวัด"],
+      district: ["อำเภอ", "เขต"],
+      subdistrict: ["ตำบล", "แขวง"],
+    }[kind];
+    let result = String(value || "");
+    for (const prefix of prefixes) {
+      if (result.startsWith(prefix)) result = result.slice(prefix.length);
+    }
+    return result;
+  }
+
+  locationMatches(query, actual, kind) {
+    const plainQuery = this.plainLocation(query, kind);
+    const plainActual = this.plainLocation(actual, kind);
+    return plainQuery === plainActual ||
+      (kind === "district" && plainQuery === "เมือง" && plainActual.startsWith("เมือง"));
   }
 
   formatPhone(raw) {
@@ -336,11 +481,15 @@ class BjpLabelCard extends HTMLElement {
   }
 }
 
-customElements.define("bjp-label-card", BjpLabelCard);
+if (!customElements.get || !customElements.get("bjp-label-card")) {
+  customElements.define("bjp-label-card", BjpLabelCard);
+}
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "bjp-label-card",
-  name: "BJP Label",
-  description: "วางข้อมูลลูกค้า ตรวจสอบ และพิมพ์ฉลากภาษาไทย",
-});
+if (!window.customCards.some((card) => card.type === "bjp-label-card")) {
+  window.customCards.push({
+    type: "bjp-label-card",
+    name: "BJP Label",
+    description: "วางข้อมูลลูกค้า ตรวจสอบ และพิมพ์ฉลากภาษาไทย",
+  });
+}
