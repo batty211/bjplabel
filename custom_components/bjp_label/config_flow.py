@@ -228,10 +228,11 @@ class BjpLabelConfigFlow(_BackendFlowMixin, config_entries.ConfigFlow, domain=DO
         )
 
 
-class BjpLabelOptionsFlow(_BackendFlowMixin, config_entries.OptionsFlowWithReload):
+class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixin):
     """Edit BJP Label settings without deleting the entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        super().__init__(config_entry)
         self.config_entry = config_entry
         self._selected_backend = str(
             config_entry.options.get(
@@ -245,6 +246,17 @@ class BjpLabelOptionsFlow(_BackendFlowMixin, config_entries.OptionsFlowWithReloa
             **dict(self.config_entry.data),
             **dict(self.config_entry.options),
         }
+
+    def _save_backend_settings(
+        self, user_input: Mapping[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        normalized = self._normalize_backend_data(user_input)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            data=normalized,
+            options={},
+        )
+        return self.async_create_entry(title="", data=None)
 
     async def async_step_init(self, user_input=None):
         """Pick which backend config to edit."""
@@ -273,7 +285,7 @@ class BjpLabelOptionsFlow(_BackendFlowMixin, config_entries.OptionsFlowWithReloa
         if user_input is not None:
             errors = self._validate_backend_input(user_input)
             if not errors:
-                return self.async_create_entry(data=self._normalize_backend_data(user_input))
+                return self._save_backend_settings(user_input)
             if user_input.get(CONF_PRINTER_BACKEND) == PRINTER_BACKEND_XPRINTER_TSPL:
                 self._selected_backend = PRINTER_BACKEND_XPRINTER_TSPL
                 return await self.async_step_xprinter(user_input)
@@ -292,7 +304,7 @@ class BjpLabelOptionsFlow(_BackendFlowMixin, config_entries.OptionsFlowWithReloa
         if user_input is not None:
             errors = self._validate_backend_input(user_input)
             if not errors:
-                return self.async_create_entry(data=self._normalize_backend_data(user_input))
+                return self._save_backend_settings(user_input)
             if user_input.get(CONF_PRINTER_BACKEND) == PRINTER_BACKEND_NIIMBOT:
                 self._selected_backend = PRINTER_BACKEND_NIIMBOT
                 return await self.async_step_niimbot(user_input)

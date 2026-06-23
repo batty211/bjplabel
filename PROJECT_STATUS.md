@@ -1,6 +1,6 @@
 # BJP Label Project Status
 
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 
 ## Done
 
@@ -26,6 +26,7 @@ Last updated: 2026-06-22
 - Added automatic no-print previews and disabled real printing until the current preview succeeds.
 - Added preview image service responses, stale-response protection, retry, and preview-only mode.
 - Updated setup and service examples for the new workflow.
+- Fixed the options flow to follow `OptionsFlowWithReload` requirements and save backend settings without a Config-page 500 error.
 
 ## Verification
 
