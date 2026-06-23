@@ -27,6 +27,7 @@ Last updated: 2026-06-23
 - Added preview image service responses, stale-response protection, retry, and preview-only mode.
 - Updated setup and service examples for the new workflow.
 - Fixed the options flow to follow `OptionsFlowWithReload` requirements and save backend settings without a Config-page 500 error.
+- Added file-based debug logging for config-edit flow steps and exceptions to help diagnose Home Assistant Config page failures.
 
 ## Verification
 

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime, timezone
+import json
+import traceback
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.selector import (
     DeviceSelector,
     DeviceSelectorConfig,
@@ -37,6 +41,31 @@ from .const import (
     PRINTER_BACKEND_NIIMBOT,
     PRINTER_BACKEND_XPRINTER_TSPL,
 )
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert flow values into JSON-safe debug output."""
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return repr(value)
+
+
+def _write_flow_log(
+    hass: HomeAssistant, event: str, **details: Any
+) -> None:
+    """Append config flow debug details to a file in the HA config directory."""
+    log_path = hass.config.path(f"{DOMAIN}_config_flow.log")
+    payload = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "event": event,
+        **{key: _json_safe(value) for key, value in details.items()},
+    }
+    with open(log_path, "a", encoding="utf-8") as log_file:
+        log_file.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 class _BackendFlowMixin:
@@ -247,70 +276,164 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
             **dict(self.config_entry.options),
         }
 
+    def _log_event(self, event: str, **details: Any) -> None:
+        """Write a structured debug line for the options flow."""
+        _write_flow_log(
+            self.hass,
+            event,
+            entry_id=self.config_entry.entry_id,
+            selected_backend=self._selected_backend,
+            **details,
+        )
+
     def _save_backend_settings(
         self, user_input: Mapping[str, Any]
     ) -> config_entries.ConfigFlowResult:
         normalized = self._normalize_backend_data(user_input)
+        self._log_event(
+            "options_save_start",
+            user_input=user_input,
+            normalized=normalized,
+            previous_data=dict(self.config_entry.data),
+            previous_options=dict(self.config_entry.options),
+        )
         self.hass.config_entries.async_update_entry(
             self.config_entry,
             data=normalized,
             options={},
         )
+        self._log_event(
+            "options_save_complete",
+            stored_data=dict(self.config_entry.data),
+            stored_options=dict(self.config_entry.options),
+        )
         return self.async_create_entry(title="", data=None)
 
     async def async_step_init(self, user_input=None):
         """Pick which backend config to edit."""
-        if user_input is not None:
-            self._selected_backend = user_input[CONF_PRINTER_BACKEND]
-            if self._selected_backend == PRINTER_BACKEND_XPRINTER_TSPL:
-                return await self.async_step_xprinter()
-            return await self.async_step_niimbot()
+        try:
+            self._log_event(
+                "options_step_init_enter",
+                user_input=user_input,
+                defaults=self._current_defaults(),
+            )
+            if user_input is not None:
+                self._selected_backend = user_input[CONF_PRINTER_BACKEND]
+                self._log_event(
+                    "options_step_init_route",
+                    next_backend=self._selected_backend,
+                )
+                if self._selected_backend == PRINTER_BACKEND_XPRINTER_TSPL:
+                    return await self.async_step_xprinter()
+                return await self.async_step_niimbot()
 
-        defaults = self._current_defaults()
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_PRINTER_BACKEND,
-                    default=defaults.get(CONF_PRINTER_BACKEND, DEFAULT_PRINTER_BACKEND),
-                ): self._backend_selector()
-            }
-        )
-        return self.async_show_form(step_id="init", data_schema=schema, errors={})
+            defaults = self._current_defaults()
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_PRINTER_BACKEND,
+                        default=defaults.get(
+                            CONF_PRINTER_BACKEND, DEFAULT_PRINTER_BACKEND
+                        ),
+                    ): self._backend_selector()
+                }
+            )
+            self._log_event("options_step_init_show_form", defaults=defaults)
+            return self.async_show_form(step_id="init", data_schema=schema, errors={})
+        except Exception:
+            self._log_event(
+                "options_step_init_exception",
+                user_input=user_input,
+                traceback=traceback.format_exc(),
+            )
+            raise
 
     async def async_step_niimbot(self, user_input=None):
         """Edit Niimbot settings."""
-        errors = {}
-        defaults = self._current_defaults()
-        defaults[CONF_PRINTER_BACKEND] = PRINTER_BACKEND_NIIMBOT
-        if user_input is not None:
-            errors = self._validate_backend_input(user_input)
-            if not errors:
-                return self._save_backend_settings(user_input)
-            if user_input.get(CONF_PRINTER_BACKEND) == PRINTER_BACKEND_XPRINTER_TSPL:
-                self._selected_backend = PRINTER_BACKEND_XPRINTER_TSPL
-                return await self.async_step_xprinter(user_input)
+        try:
+            errors = {}
+            defaults = self._current_defaults()
+            defaults[CONF_PRINTER_BACKEND] = PRINTER_BACKEND_NIIMBOT
+            self._log_event(
+                "options_step_niimbot_enter",
+                user_input=user_input,
+                defaults=defaults,
+            )
+            if user_input is not None:
+                errors = self._validate_backend_input(user_input)
+                self._log_event(
+                    "options_step_niimbot_validated",
+                    user_input=user_input,
+                    errors=errors,
+                )
+                if not errors:
+                    return self._save_backend_settings(user_input)
+                if user_input.get(CONF_PRINTER_BACKEND) == PRINTER_BACKEND_XPRINTER_TSPL:
+                    self._selected_backend = PRINTER_BACKEND_XPRINTER_TSPL
+                    self._log_event("options_step_niimbot_switch_backend")
+                    return await self.async_step_xprinter(user_input)
 
-        return self.async_show_form(
-            step_id="niimbot",
-            data_schema=self._niimbot_schema(defaults if user_input is None else user_input),
-            errors=errors,
-        )
+            self._log_event(
+                "options_step_niimbot_show_form",
+                defaults=defaults if user_input is None else user_input,
+                errors=errors,
+            )
+            return self.async_show_form(
+                step_id="niimbot",
+                data_schema=self._niimbot_schema(
+                    defaults if user_input is None else user_input
+                ),
+                errors=errors,
+            )
+        except Exception:
+            self._log_event(
+                "options_step_niimbot_exception",
+                user_input=user_input,
+                traceback=traceback.format_exc(),
+            )
+            raise
 
     async def async_step_xprinter(self, user_input=None):
         """Edit Xprinter settings."""
-        errors = {}
-        defaults = self._current_defaults()
-        defaults[CONF_PRINTER_BACKEND] = PRINTER_BACKEND_XPRINTER_TSPL
-        if user_input is not None:
-            errors = self._validate_backend_input(user_input)
-            if not errors:
-                return self._save_backend_settings(user_input)
-            if user_input.get(CONF_PRINTER_BACKEND) == PRINTER_BACKEND_NIIMBOT:
-                self._selected_backend = PRINTER_BACKEND_NIIMBOT
-                return await self.async_step_niimbot(user_input)
+        try:
+            errors = {}
+            defaults = self._current_defaults()
+            defaults[CONF_PRINTER_BACKEND] = PRINTER_BACKEND_XPRINTER_TSPL
+            self._log_event(
+                "options_step_xprinter_enter",
+                user_input=user_input,
+                defaults=defaults,
+            )
+            if user_input is not None:
+                errors = self._validate_backend_input(user_input)
+                self._log_event(
+                    "options_step_xprinter_validated",
+                    user_input=user_input,
+                    errors=errors,
+                )
+                if not errors:
+                    return self._save_backend_settings(user_input)
+                if user_input.get(CONF_PRINTER_BACKEND) == PRINTER_BACKEND_NIIMBOT:
+                    self._selected_backend = PRINTER_BACKEND_NIIMBOT
+                    self._log_event("options_step_xprinter_switch_backend")
+                    return await self.async_step_niimbot(user_input)
 
-        return self.async_show_form(
-            step_id="xprinter",
-            data_schema=self._xprinter_schema(defaults if user_input is None else user_input),
-            errors=errors,
-        )
+            self._log_event(
+                "options_step_xprinter_show_form",
+                defaults=defaults if user_input is None else user_input,
+                errors=errors,
+            )
+            return self.async_show_form(
+                step_id="xprinter",
+                data_schema=self._xprinter_schema(
+                    defaults if user_input is None else user_input
+                ),
+                errors=errors,
+            )
+        except Exception:
+            self._log_event(
+                "options_step_xprinter_exception",
+                user_input=user_input,
+                traceback=traceback.format_exc(),
+            )
+            raise
