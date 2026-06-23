@@ -64,6 +64,8 @@ def resolve_print_config(data: dict[str, Any], settings: dict[str, Any]) -> Prin
         density=int(data.get("density", settings.get("density", DEFAULT_DENSITY))),
         rotate=int(data.get("rotate", settings.get("rotate", DEFAULT_ROTATE))),
     )
+    # Xprinter and Niimbot intentionally consume different fields even though they
+    # share one public service, so we normalize each backend to its active subset.
     if backend == PRINTER_BACKEND_XPRINTER_TSPL:
         return PrintConfig(
             backend=config.backend,

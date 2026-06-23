@@ -1,3 +1,7 @@
+get_settings:
+  name: Get active settings
+  description: Return the current BJP Label integration settings so the Lovelace card can use the real printer backend and defaults.
+
 print_label:
   name: Print customer label
   description: Parse Thai customer text, preview it, or print it through Niimbot or Xprinter. Preview calls can return an image data URL.

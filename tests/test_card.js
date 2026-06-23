@@ -35,6 +35,15 @@ card.config = {
   preview: false,
   printer_backend: "niimbot",
 };
+card.integrationSettings = {
+  printer_backend: "niimbot",
+  font: "NotoSansThai-Regular.ttf",
+  device_id: "",
+  host: "",
+  port: 9100,
+  label_size: "100x75",
+};
+card.settingsLoaded = true;
 
 const parsed = card.parseText(
   "เทพฤทธิ์ ดีเจริญ 0817544374\n14/23 ม.4 ต.ธรรมศาลา อ.เมือง จ.นครปฐม 73000",
@@ -116,6 +125,15 @@ xprinterCard.config = {
   port: 9100,
   label_size: "100x75",
 };
+xprinterCard.integrationSettings = {
+  printer_backend: "niimbot",
+  font: "NotoSansThai-Regular.ttf",
+  device_id: "",
+  host: "",
+  port: 9100,
+  label_size: "100x75",
+};
+xprinterCard.settingsLoaded = true;
 xprinterCard.formattedText = card.formattedText;
 xprinterCard.formatted = card.formatted;
 const xprinterServiceData = xprinterCard.serviceData();
@@ -149,6 +167,8 @@ async function testPreviewThenPrint() {
   let finishPrint;
   const printCard = new Card();
   printCard.config = { ...card.config, preview: false };
+  printCard.integrationSettings = { ...card.integrationSettings };
+  printCard.settingsLoaded = true;
   printCard.formatted = card.parseFormattedText(
     "ส่ง สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
   );
@@ -200,6 +220,8 @@ async function testPreviewThenPrint() {
 async function testPreviewFailureRetryAndStaleResponse() {
   const previewCard = new Card();
   previewCard.config = { ...card.config, preview: false };
+  previewCard.integrationSettings = { ...card.integrationSettings };
+  previewCard.settingsLoaded = true;
   previewCard.formatted = card.parseFormattedText(
     "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
   );
@@ -230,6 +252,8 @@ async function testAutomaticAndPreviewOnlyModes() {
   let calls = 0;
   const autoCard = new Card();
   autoCard.config = { ...card.config, preview: false };
+  autoCard.integrationSettings = { ...card.integrationSettings };
+  autoCard.settingsLoaded = true;
   autoCard.formatted = card.parseFormattedText(
     "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
   );
@@ -259,6 +283,8 @@ async function testAutomaticAndPreviewOnlyModes() {
 function testPreviewImageIsRendered() {
   const uiCard = new Card();
   uiCard.config = { ...card.config, preview: false };
+  uiCard.integrationSettings = { ...card.integrationSettings };
+  uiCard.settingsLoaded = true;
   uiCard.formatted = card.parseFormattedText(
     "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
   );
@@ -313,21 +339,91 @@ function testPreviewImageIsRendered() {
 
 function testPreviewBackendHelpers() {
   const niimbotCard = new Card();
+  niimbotCard.rawConfig = { printer_backend: "niimbot" };
   niimbotCard.config = { ...card.config, printer_backend: "niimbot" };
+  niimbotCard.integrationSettings = { ...card.integrationSettings };
+  niimbotCard.settingsLoaded = true;
   assert.equal(niimbotCard.shouldRotatePreview(), true);
   assert.equal(niimbotCard.shouldShowLabelSizeSelector(), false);
 
   const xprinterPreviewCard = new Card();
+  xprinterPreviewCard.rawConfig = {
+    printer_backend: "xprinter_tspl",
+    label_size: "100x150",
+    show_label_size_selector: true,
+  };
   xprinterPreviewCard.config = {
     ...card.config,
     printer_backend: "xprinter_tspl",
     label_size: "100x150",
     show_label_size_selector: true,
   };
+  xprinterPreviewCard.integrationSettings = {
+    printer_backend: "niimbot",
+    font: "NotoSansThai-Regular.ttf",
+    device_id: "",
+    host: "",
+    port: 9100,
+    label_size: "100x75",
+  };
+  xprinterPreviewCard.settingsLoaded = true;
   xprinterPreviewCard.selectedLabelSize = "100x150";
   assert.equal(xprinterPreviewCard.shouldRotatePreview(), false);
   assert.equal(xprinterPreviewCard.shouldShowLabelSizeSelector(), true);
   assert.deepEqual(xprinterPreviewCard.currentPreviewPreset(), { width: 800, height: 1200 });
+}
+
+function testIntegrationSettingsDriveBackendWhenCardDoesNotOverride() {
+  const inferredCard = new Card();
+  inferredCard.rawConfig = {};
+  inferredCard.config = {
+    width: 640,
+    height: 384,
+    density: 3,
+    rotate: 90,
+    preview: false,
+    show_label_size_selector: true,
+  };
+  inferredCard.integrationSettings = {
+    printer_backend: "xprinter_tspl",
+    font: "NotoSansThai-Regular.ttf",
+    device_id: "",
+    host: "192.168.1.77",
+    port: 9100,
+    label_size: "100x150",
+  };
+  inferredCard.settingsLoaded = true;
+  inferredCard.selectedLabelSize = "100x150";
+  inferredCard.formatted = card.formatted;
+  const settings = inferredCard.effectiveSettings();
+  const payload = inferredCard.serviceData(true);
+  assert.equal(settings.printer_backend, "xprinter_tspl");
+  assert.equal(inferredCard.shouldRotatePreview(), false);
+  assert.equal(payload.printer_backend, "xprinter_tspl");
+  assert.equal(payload.host, "192.168.1.77");
+  assert.equal(payload.label_size, "100x150");
+  assert.equal("rotate" in payload, false);
+}
+
+async function testSettingsMustLoadBeforeAutomaticPreview() {
+  let calls = 0;
+  const loadingCard = new Card();
+  loadingCard.config = { ...card.config, preview: false };
+  loadingCard.formatted = card.parseFormattedText(
+    "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
+  );
+  loadingCard.updateForm = () => {};
+  loadingCard._hass = {
+    callService: async () => {
+      calls += 1;
+      return { image: "data:image/png;base64,AUTO" };
+    },
+  };
+  loadingCard.settingsLoaded = false;
+  loadingCard.loadingSettings = true;
+  loadingCard.schedulePreview(0);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(calls, 0);
 }
 
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/manifest.json")));
@@ -345,4 +441,6 @@ Promise.resolve()
   .then(testAutomaticAndPreviewOnlyModes)
   .then(testPreviewImageIsRendered)
   .then(testPreviewBackendHelpers)
+  .then(testIntegrationSettingsDriveBackendWhenCardDoesNotOverride)
+  .then(testSettingsMustLoadBeforeAutomaticPreview)
   .then(() => console.log("card tests passed"));

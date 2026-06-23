@@ -1,11 +1,21 @@
-const BJP_LABEL_VERSION = "0.4.2";
+const BJP_LABEL_VERSION = "0.4.3";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
 const BJP_LABEL_SIZE_PRESETS = {
   "100x75": { width: 800, height: 600 },
   "100x150": { width: 800, height: 1200 },
 };
+const BJP_LABEL_INTEGRATION_DEFAULTS = {
+  printer_backend: "niimbot",
+  font: "NotoSansThai-Regular.ttf",
+  device_id: "",
+  host: "",
+  port: 9100,
+  label_size: "100x75",
+};
 
+// Lovelace card that parses pasted Thai address text, loads integration settings,
+// requests preview images, and sends print jobs through the BJP Label services.
 class BjpLabelCard extends HTMLElement {
   static getConfigElement() {
     return document.createElement("hui-generic-card-editor");
@@ -15,6 +25,7 @@ class BjpLabelCard extends HTMLElement {
     return { title: "พิมพ์ฉลากลูกค้า" };
   }
 
+  // Accept Lovelace card overrides and initialize local UI state for one card instance.
   setConfig(config) {
     this.rawConfig = { ...config };
     this.config = {
@@ -28,6 +39,9 @@ class BjpLabelCard extends HTMLElement {
       show_label_size_selector: false,
       ...config,
     };
+    this.integrationSettings = null;
+    this.loadingSettings = false;
+    this.settingsLoaded = false;
     this.selectedLabelSize = this.config.label_size || "100x75";
     this.text = "";
     this.formattedText = "";
@@ -49,9 +63,12 @@ class BjpLabelCard extends HTMLElement {
     this.loadPostcodes();
   }
 
+  // Home Assistant injects hass here; use it to fetch real integration settings
+  // before we start generating previews.
   set hass(hass) {
     this._hass = hass;
-    if (this.formatted?.valid && !this.previewImage && !this.isPreviewing && !this.previewError && this.previewTimer === undefined) {
+    this.loadIntegrationSettings();
+    if (this.formatted?.valid && this.settingsLoaded && !this.previewImage && !this.isPreviewing && !this.previewError && this.previewTimer === undefined) {
       this.schedulePreview();
     }
   }
@@ -336,10 +353,16 @@ class BjpLabelCard extends HTMLElement {
     if (this.previewImage) previewImage.src = this.previewImage;
     else previewImage.removeAttribute("src");
     placeholder.hidden = Boolean(this.previewImage);
-    placeholder.textContent = this.isPreviewing ? "กำลังสร้างตัวอย่าง..." : this.previewError ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง" : "รอสร้างตัวอย่างฉลาก";
+    placeholder.textContent = this.loadingSettings
+      ? "กำลังโหลดค่าการพิมพ์..."
+      : this.isPreviewing
+        ? "กำลังสร้างตัวอย่าง..."
+        : this.previewError
+          ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง"
+          : "รอสร้างตัวอย่างฉลาก";
     retryButton.hidden = !this.previewError || this.isPreviewing;
     const status = this.querySelector(".status");
-    status.textContent = this.status || (this.formatted.valid ? "กำลังเตรียมตัวอย่างก่อนพิมพ์" : "รอข้อมูล");
+    status.textContent = this.status || (this.formatted.valid ? (this.loadingSettings ? "กำลังโหลดค่าการตั้งค่าเครื่องพิมพ์" : "กำลังเตรียมตัวอย่างก่อนพิมพ์") : "รอข้อมูล");
     status.dataset.type = this.statusType;
   }
 
@@ -409,7 +432,7 @@ class BjpLabelCard extends HTMLElement {
   schedulePreview(delay = BJP_LABEL_PREVIEW_DELAY) {
     if (this.previewTimer !== undefined) clearTimeout(this.previewTimer);
     this.previewTimer = undefined;
-    if (!this.formatted?.valid || !this._hass) return;
+    if (!this.formatted?.valid || !this._hass || !this.settingsLoaded || this.loadingSettings) return;
     const revision = this.previewRevision;
     this.previewTimer = setTimeout(() => {
       this.previewTimer = undefined;
@@ -417,8 +440,9 @@ class BjpLabelCard extends HTMLElement {
     }, delay);
   }
 
+  // Preview uses the real backend selected in the integration and requests only an image response.
   async generatePreview(revision = this.previewRevision) {
-    if (!this.formatted?.valid || !this._hass || revision !== this.previewRevision || this.isPreviewing || this.isPrinting) return;
+    if (!this.formatted?.valid || !this._hass || !this.settingsLoaded || revision !== this.previewRevision || this.isPreviewing || this.isPrinting) return;
     const previewData = this.serviceData(true);
     this.isPreviewing = true;
     this.previewError = false;
@@ -476,9 +500,64 @@ class BjpLabelCard extends HTMLElement {
     }
   }
 
+  async loadIntegrationSettings() {
+    if (!this._hass || this.loadingSettings || this.settingsLoaded) return;
+    this.loadingSettings = true;
+    this.updateForm?.();
+    try {
+      const response = await this._hass.callService("bjp_label", "get_settings", {}, undefined, true, true);
+      this.integrationSettings = {
+        ...BJP_LABEL_INTEGRATION_DEFAULTS,
+        ...(response?.response || response || {}),
+      };
+      if (!Object.prototype.hasOwnProperty.call(this.rawConfig || {}, "label_size")) {
+        this.selectedLabelSize = this.integrationSettings.label_size || this.selectedLabelSize;
+      }
+      this.settingsLoaded = true;
+    } catch (error) {
+      console.warn("BJP Label: โหลดค่าการตั้งค่าเครื่องพิมพ์ไม่สำเร็จ", error);
+      this.integrationSettings = { ...BJP_LABEL_INTEGRATION_DEFAULTS };
+      this.settingsLoaded = true;
+    } finally {
+      this.loadingSettings = false;
+      this.updateForm?.();
+      if (this.formatted?.valid && !this.previewImage && !this.isPreviewing && !this.previewError && this.previewTimer === undefined) {
+        this.schedulePreview();
+      }
+    }
+  }
+
+  // Resolve the effective printer settings with this precedence:
+  // card override -> integration config -> deterministic integration defaults.
+  effectiveSettings() {
+    const rawConfig = this.rawConfig || {};
+    const integrationSettings = this.integrationSettings || BJP_LABEL_INTEGRATION_DEFAULTS;
+    return {
+      printer_backend: Object.prototype.hasOwnProperty.call(rawConfig, "printer_backend")
+        ? this.config.printer_backend
+        : integrationSettings.printer_backend,
+      font: Object.prototype.hasOwnProperty.call(rawConfig, "font")
+        ? this.config.font
+        : integrationSettings.font,
+      device_id: Object.prototype.hasOwnProperty.call(rawConfig, "device_id")
+        ? this.config.device_id
+        : integrationSettings.device_id,
+      host: Object.prototype.hasOwnProperty.call(rawConfig, "host")
+        ? this.config.host
+        : integrationSettings.host,
+      port: Object.prototype.hasOwnProperty.call(rawConfig, "port")
+        ? Number(this.config.port)
+        : Number(integrationSettings.port),
+      label_size: Object.prototype.hasOwnProperty.call(rawConfig, "label_size")
+        ? (this.selectedLabelSize || this.config.label_size || "100x75")
+        : (this.selectedLabelSize || integrationSettings.label_size || "100x75"),
+    };
+  }
+
+  // Build the print/preview payload using the active backend's real settings.
   serviceData(preview = false) {
     const rawConfig = this.rawConfig || {};
-    const labelSize = this.selectedLabelSize || this.config.label_size || "100x75";
+    const settings = this.effectiveSettings();
     const data = {
       name: this.formatted.name,
       phone: this.formatted.phone,
@@ -489,19 +568,23 @@ class BjpLabelCard extends HTMLElement {
       density: Number(this.config.density),
       preview: Boolean(preview),
     };
-    if (this.isNiimbotBackend()) data.rotate = Number(this.config.rotate);
-    if (Object.prototype.hasOwnProperty.call(rawConfig, "printer_backend")) data.printer_backend = this.config.printer_backend;
-    if (this.isXprinterBackend() && (this.shouldShowLabelSizeSelector() || Object.prototype.hasOwnProperty.call(rawConfig, "label_size"))) data.label_size = labelSize;
-    if (this.isNiimbotBackend() && Object.prototype.hasOwnProperty.call(rawConfig, "device_id")) data.device_id = this.config.device_id;
-    if (Object.prototype.hasOwnProperty.call(rawConfig, "font")) data.font = this.config.font;
-    if (this.isXprinterBackend() && Object.prototype.hasOwnProperty.call(rawConfig, "host")) data.host = this.config.host;
-    if (this.isXprinterBackend() && Object.prototype.hasOwnProperty.call(rawConfig, "port")) data.port = Number(this.config.port);
+    data.printer_backend = settings.printer_backend;
+    data.font = settings.font;
+    if (this.isNiimbotBackend()) {
+      data.rotate = Number(this.config.rotate);
+      if (settings.device_id) data.device_id = settings.device_id;
+    }
+    if (this.isXprinterBackend()) {
+      data.label_size = settings.label_size;
+      data.host = settings.host;
+      data.port = settings.port;
+    }
     return data;
   }
 
   currentPreviewPreset() {
     if (this.isXprinterBackend()) {
-      return BJP_LABEL_SIZE_PRESETS[this.selectedLabelSize || this.config.label_size] || BJP_LABEL_SIZE_PRESETS["100x75"];
+      return BJP_LABEL_SIZE_PRESETS[this.effectiveSettings().label_size] || BJP_LABEL_SIZE_PRESETS["100x75"];
     }
     return {
       width: this.positiveNumber(this.config.width, 640),
@@ -510,7 +593,7 @@ class BjpLabelCard extends HTMLElement {
   }
 
   isXprinterBackend() {
-    return this.config?.printer_backend === "xprinter_tspl";
+    return this.effectiveSettings().printer_backend === "xprinter_tspl";
   }
 
   isNiimbotBackend() {

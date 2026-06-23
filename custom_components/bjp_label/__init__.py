@@ -35,6 +35,7 @@ from .const import (
     FRONTEND_URL,
     LABEL_SIZES,
     PRINTER_BACKENDS,
+    SERVICE_GET_SETTINGS,
     SERVICE_PRINT_CUSTOMER,
     SERVICE_PRINT_LABEL,
     SERVICE_SAVE_CUSTOMER,
@@ -104,7 +105,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     async def async_print_label(call: ServiceCall) -> ServiceResponse | None:
         data = call.data
         parsed = _parse_service_data(data)
-        settings = next(iter(hass.data[DOMAIN].values()), {})
+        settings = _resolve_integration_settings(hass)
         font = data.get("font") or settings.get(CONF_FONT, DEFAULT_FONT)
         if not os.path.isabs(font):
             www_font = hass.config.path("www", "fonts", font)
@@ -134,6 +135,21 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         image = response.get("image") if isinstance(response, dict) else None
         return {"image": image} if isinstance(image, str) else {}
 
+    async def async_get_settings(call: ServiceCall) -> ServiceResponse:
+        """Expose the active integration settings so the Lovelace card can use real values."""
+        del call
+        settings = _resolve_integration_settings(hass)
+        return {
+            CONF_PRINTER_BACKEND: settings.get(
+                CONF_PRINTER_BACKEND, PRINTER_BACKENDS[0]
+            ),
+            CONF_FONT: settings.get(CONF_FONT, DEFAULT_FONT),
+            "device_id": settings.get("device_id", ""),
+            CONF_HOST: settings.get(CONF_HOST, ""),
+            CONF_PORT: settings.get(CONF_PORT, 9100),
+            CONF_LABEL_SIZE: settings.get(CONF_LABEL_SIZE, LABEL_SIZES[0]),
+        }
+
     async def async_save_customer(call: ServiceCall) -> None:
         _LOGGER.warning("bjp_label.save_customer is reserved for Phase 2")
 
@@ -149,6 +165,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         async_print_label,
         schema=PRINT_LABEL_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_SETTINGS,
+        async_get_settings,
+        supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SAVE_CUSTOMER, async_save_customer, schema=SAVE_CUSTOMER_SCHEMA
@@ -187,6 +209,21 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload the config entry after options change."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _resolve_integration_settings(hass: HomeAssistant) -> dict:
+    """Return the active integration settings or deterministic defaults."""
+    return next(
+        iter(hass.data.get(DOMAIN, {}).values()),
+        {
+            CONF_PRINTER_BACKEND: PRINTER_BACKENDS[0],
+            CONF_FONT: DEFAULT_FONT,
+            "device_id": "",
+            CONF_HOST: "",
+            CONF_PORT: 9100,
+            CONF_LABEL_SIZE: LABEL_SIZES[0],
+        },
+    )
 
 
 def _parse_service_data(data: dict) -> ParsedLabel:

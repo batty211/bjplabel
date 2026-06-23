@@ -1,5 +1,5 @@
 DOMAIN = "bjp_label"
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 
 FRONTEND_URL = "/bjp_label"
 
@@ -28,6 +28,7 @@ DEFAULT_LABEL_SIZE = LABEL_SIZE_100X75
 DEFAULT_PORT = 9100
 
 SERVICE_PRINT_LABEL = "print_label"
+SERVICE_GET_SETTINGS = "get_settings"
 SERVICE_SAVE_CUSTOMER = "save_customer"
 SERVICE_SEARCH_CUSTOMERS = "search_customers"
 SERVICE_PRINT_CUSTOMER = "print_customer"
