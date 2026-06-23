@@ -266,11 +266,13 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         super().__init__()
-        self.config_entry = config_entry
+        self._config_entry = config_entry
         self._selected_backend = str(
-            config_entry.options.get(
+            self._config_entry.options.get(
                 CONF_PRINTER_BACKEND,
-                config_entry.data.get(CONF_PRINTER_BACKEND, DEFAULT_PRINTER_BACKEND),
+                self._config_entry.data.get(
+                    CONF_PRINTER_BACKEND, DEFAULT_PRINTER_BACKEND
+                ),
             )
         )
         _write_flow_log(
@@ -284,8 +286,8 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
 
     def _current_defaults(self) -> dict[str, Any]:
         return {
-            **dict(self.config_entry.data),
-            **dict(self.config_entry.options),
+            **dict(self._config_entry.data),
+            **dict(self._config_entry.options),
         }
 
     def _log_event(self, event: str, **details: Any) -> None:
@@ -293,7 +295,7 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
         _write_flow_log(
             getattr(self, "hass", None),
             event,
-            entry_id=self.config_entry.entry_id,
+            entry_id=self._config_entry.entry_id,
             selected_backend=self._selected_backend,
             **details,
         )
@@ -306,18 +308,18 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
             "options_save_start",
             user_input=user_input,
             normalized=normalized,
-            previous_data=dict(self.config_entry.data),
-            previous_options=dict(self.config_entry.options),
+            previous_data=dict(self._config_entry.data),
+            previous_options=dict(self._config_entry.options),
         )
         self.hass.config_entries.async_update_entry(
-            self.config_entry,
+            self._config_entry,
             data=normalized,
             options={},
         )
         self._log_event(
             "options_save_complete",
-            stored_data=dict(self.config_entry.data),
-            stored_options=dict(self.config_entry.options),
+            stored_data=dict(self._config_entry.data),
+            stored_options=dict(self._config_entry.options),
         )
         return self.async_create_entry(title="", data=None)
 

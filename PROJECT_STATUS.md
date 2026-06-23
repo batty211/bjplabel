@@ -29,6 +29,7 @@ Last updated: 2026-06-23
 - Fixed the options flow to follow `OptionsFlowWithReload` requirements and save backend settings without a Config-page 500 error.
 - Added file-based debug logging for config-edit flow steps and exceptions to help diagnose Home Assistant Config page failures.
 - Fixed options-flow initialization so debug logging also works when the Config page fails before any step renders.
+- Stopped writing to the Home Assistant `config_entry` property inside `OptionsFlowWithReload` and now keep the entry in a private field to avoid Config-page creation crashes.
 
 ## Verification
 
