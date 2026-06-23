@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime, timezone
 import json
+from pathlib import Path
 import traceback
 from typing import Any
 
@@ -55,10 +56,13 @@ def _json_safe(value: Any) -> Any:
 
 
 def _write_flow_log(
-    hass: HomeAssistant, event: str, **details: Any
+    hass: HomeAssistant | None, event: str, **details: Any
 ) -> None:
     """Append config flow debug details to a file in the HA config directory."""
-    log_path = hass.config.path(f"{DOMAIN}_config_flow.log")
+    if hass is not None:
+        log_path = Path(hass.config.path(f"{DOMAIN}_config_flow.log"))
+    else:
+        log_path = Path(__file__).resolve().parents[2] / f"{DOMAIN}_config_flow.log"
     payload = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "event": event,
@@ -261,13 +265,21 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
     """Edit BJP Label settings without deleting the entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        super().__init__(config_entry)
+        super().__init__()
         self.config_entry = config_entry
         self._selected_backend = str(
             config_entry.options.get(
                 CONF_PRINTER_BACKEND,
                 config_entry.data.get(CONF_PRINTER_BACKEND, DEFAULT_PRINTER_BACKEND),
             )
+        )
+        _write_flow_log(
+            None,
+            "options_flow_init",
+            entry_id=config_entry.entry_id,
+            selected_backend=self._selected_backend,
+            data=dict(config_entry.data),
+            options=dict(config_entry.options),
         )
 
     def _current_defaults(self) -> dict[str, Any]:
@@ -279,7 +291,7 @@ class BjpLabelOptionsFlow(config_entries.OptionsFlowWithReload, _BackendFlowMixi
     def _log_event(self, event: str, **details: Any) -> None:
         """Write a structured debug line for the options flow."""
         _write_flow_log(
-            self.hass,
+            getattr(self, "hass", None),
             event,
             entry_id=self.config_entry.entry_id,
             selected_backend=self._selected_backend,
