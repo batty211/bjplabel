@@ -4,10 +4,25 @@
     "step": {
       "user": {
         "title": "ตั้งค่า BJP Label",
-        "description": "เลือกเครื่องพิมพ์ ฉลาก และฟอนต์ภาษาไทยสำหรับพิมพ์ฉลากลูกค้า",
+        "description": "เลือกประเภทเครื่องพิมพ์ก่อน เพื่อแสดงค่าที่ต้องตั้งเฉพาะเครื่องนั้น",
+        "data": {
+          "printer_backend": "ประเภทเครื่องพิมพ์"
+        }
+      },
+      "niimbot": {
+        "title": "ตั้งค่า Niimbot",
+        "description": "เลือกเครื่องพิมพ์ Niimbot และฟอนต์ภาษาไทยสำหรับฉลาก 50 x 80 มม.",
         "data": {
           "printer_backend": "ประเภทเครื่องพิมพ์",
           "device_id": "เครื่องพิมพ์ Niimbot",
+          "font": "ชื่อไฟล์ฟอนต์ภาษาไทย"
+        }
+      },
+      "xprinter": {
+        "title": "ตั้งค่า Xprinter",
+        "description": "กรอก IP หรือโฮสต์ของ Xprinter และเลือกขนาดฉลากแนวนอน",
+        "data": {
+          "printer_backend": "ประเภทเครื่องพิมพ์",
           "host": "IP หรือโฮสต์ของ Xprinter",
           "port": "พอร์ตของ Xprinter",
           "label_size": "ขนาดฉลาก",
@@ -24,6 +39,41 @@
     },
     "abort": {
       "already_configured": "ตั้งค่า BJP Label ไว้แล้ว"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "แก้ไขการตั้งค่า BJP Label",
+        "description": "เลือกประเภทเครื่องพิมพ์ที่ต้องการแก้ไข",
+        "data": {
+          "printer_backend": "ประเภทเครื่องพิมพ์"
+        }
+      },
+      "niimbot": {
+        "title": "แก้ไขการตั้งค่า Niimbot",
+        "description": "ปรับค่าเครื่องพิมพ์ Niimbot และฟอนต์ภาษาไทย",
+        "data": {
+          "printer_backend": "ประเภทเครื่องพิมพ์",
+          "device_id": "เครื่องพิมพ์ Niimbot",
+          "font": "ชื่อไฟล์ฟอนต์ภาษาไทย"
+        }
+      },
+      "xprinter": {
+        "title": "แก้ไขการตั้งค่า Xprinter",
+        "description": "ปรับค่า Xprinter และขนาดฉลากที่ใช้พิมพ์",
+        "data": {
+          "printer_backend": "ประเภทเครื่องพิมพ์",
+          "host": "IP หรือโฮสต์ของ Xprinter",
+          "port": "พอร์ตของ Xprinter",
+          "label_size": "ขนาดฉลาก",
+          "font": "ชื่อไฟล์ฟอนต์ภาษาไทย"
+        },
+        "data_description": {
+          "host": "ตัวอย่าง: 192.168.1.50",
+          "font": "ตัวอย่าง: NotoSansThai-Regular.ttf"
+        }
+      }
     }
   }
 }

@@ -51,7 +51,7 @@ def resolve_print_config(data: dict[str, Any], settings: dict[str, Any]) -> Prin
         or settings.get(CONF_PRINTER_BACKEND)
         or DEFAULT_PRINTER_BACKEND
     )
-    return PrintConfig(
+    config = PrintConfig(
         backend=backend,
         device_id=str(data.get(CONF_DEVICE_ID) or settings.get(CONF_DEVICE_ID) or ""),
         host=str(data.get(CONF_HOST) or settings.get(CONF_HOST) or ""),
@@ -63,6 +63,29 @@ def resolve_print_config(data: dict[str, Any], settings: dict[str, Any]) -> Prin
         height=int(data.get("height", settings.get("height", DEFAULT_HEIGHT))),
         density=int(data.get("density", settings.get("density", DEFAULT_DENSITY))),
         rotate=int(data.get("rotate", settings.get("rotate", DEFAULT_ROTATE))),
+    )
+    if backend == PRINTER_BACKEND_XPRINTER_TSPL:
+        return PrintConfig(
+            backend=config.backend,
+            device_id="",
+            host=config.host,
+            port=config.port,
+            label_size=config.label_size,
+            width=config.width,
+            height=config.height,
+            density=config.density,
+            rotate=0,
+        )
+    return PrintConfig(
+        backend=config.backend,
+        device_id=config.device_id,
+        host="",
+        port=config.port,
+        label_size=DEFAULT_LABEL_SIZE,
+        width=config.width,
+        height=config.height,
+        density=config.density,
+        rotate=config.rotate,
     )
 
 

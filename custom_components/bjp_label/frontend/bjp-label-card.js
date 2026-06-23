@@ -1,4 +1,4 @@
-const BJP_LABEL_VERSION = "0.4.0";
+const BJP_LABEL_VERSION = "0.4.2";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
 const BJP_LABEL_SIZE_PRESETS = {
@@ -66,8 +66,10 @@ class BjpLabelCard extends HTMLElement {
     const preset = this.currentPreviewPreset();
     const previewWidth = preset.width;
     const previewHeight = preset.height;
-    const previewImageWidth = (previewHeight / previewWidth) * 100;
-    const previewImageHeight = (previewWidth / previewHeight) * 100;
+    const rotatePreview = this.shouldRotatePreview();
+    const previewImageWidth = rotatePreview ? (previewHeight / previewWidth) * 100 : 100;
+    const previewImageHeight = rotatePreview ? (previewWidth / previewHeight) * 100 : 100;
+    const previewTransform = rotatePreview ? "translate(-50%, -50%) rotate(-90deg)" : "translate(-50%, -50%)";
 
     this.innerHTML = `
       <ha-card>
@@ -83,7 +85,9 @@ class BjpLabelCard extends HTMLElement {
             <div class="warning" data-warning aria-live="polite"></div>
           </div>
 
-          ${this.config.show_label_size_selector ? `
+          ${
+            this.shouldShowLabelSizeSelector()
+              ? `
             <div class="field">
               <label for="label-size">ขนาดฉลาก</label>
               <select id="label-size">
@@ -91,7 +95,9 @@ class BjpLabelCard extends HTMLElement {
                 <option value="100x150" ${this.selectedLabelSize === "100x150" ? "selected" : ""}>100 x 150 มม.</option>
               </select>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
 
           <section class="preview is-hidden" data-preview aria-hidden="true">
             <h3>ตัวอย่างฉลากก่อนพิมพ์</h3>
@@ -103,7 +109,7 @@ class BjpLabelCard extends HTMLElement {
           </section>
 
           <div class="actions">
-            <button class="primary" data-action="print">พิมพ์</button>
+            <button class="primary" data-action="print">พิมพ์ฉลาก</button>
             <button class="secondary" data-action="clear">ล้างข้อมูล</button>
           </div>
           <p class="status" aria-live="polite"></p>
@@ -204,7 +210,7 @@ class BjpLabelCard extends HTMLElement {
           max-width: none;
           max-height: none;
           object-fit: fill;
-          transform: translate(-50%, -50%) rotate(-90deg);
+          transform: ${previewTransform};
           transform-origin: center;
         }
         .preview-frame img[hidden] {
@@ -318,7 +324,7 @@ class BjpLabelCard extends HTMLElement {
     this.querySelector("#formatted-text").disabled = this.isPrinting;
     const printButton = this.querySelector('[data-action="print"]');
     printButton.disabled = !this.previewSnapshot || this.isPreviewing || this.isPrinting || this.printLocked || Boolean(this.config.preview);
-    printButton.textContent = this.isPrinting ? "กำลังพิมพ์..." : this.printLocked ? "พิมพ์แล้ว" : this.config.preview ? "โหมดดูตัวอย่างเท่านั้น" : "พิมพ์จริง";
+    printButton.textContent = this.isPrinting ? "กำลังพิมพ์..." : this.printLocked ? "พิมพ์แล้ว" : this.config.preview ? "โหมดดูตัวอย่างเท่านั้น" : "พิมพ์ฉลาก";
     const preview = this.querySelector("[data-preview]");
     const previewImage = this.querySelector("[data-preview-image]");
     const placeholder = this.querySelector("[data-preview-placeholder]");
@@ -471,6 +477,7 @@ class BjpLabelCard extends HTMLElement {
   }
 
   serviceData(preview = false) {
+    const rawConfig = this.rawConfig || {};
     const labelSize = this.selectedLabelSize || this.config.label_size || "100x75";
     const data = {
       name: this.formatted.name,
@@ -480,26 +487,42 @@ class BjpLabelCard extends HTMLElement {
       width: Number(this.config.width),
       height: Number(this.config.height),
       density: Number(this.config.density),
-      rotate: Number(this.config.rotate),
       preview: Boolean(preview),
     };
-    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "printer_backend")) data.printer_backend = this.config.printer_backend;
-    if (this.config.show_label_size_selector || Object.prototype.hasOwnProperty.call(this.rawConfig, "label_size")) data.label_size = labelSize;
-    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "device_id")) data.device_id = this.config.device_id;
-    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "font")) data.font = this.config.font;
-    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "host")) data.host = this.config.host;
-    if (Object.prototype.hasOwnProperty.call(this.rawConfig, "port")) data.port = Number(this.config.port);
+    if (this.isNiimbotBackend()) data.rotate = Number(this.config.rotate);
+    if (Object.prototype.hasOwnProperty.call(rawConfig, "printer_backend")) data.printer_backend = this.config.printer_backend;
+    if (this.isXprinterBackend() && (this.shouldShowLabelSizeSelector() || Object.prototype.hasOwnProperty.call(rawConfig, "label_size"))) data.label_size = labelSize;
+    if (this.isNiimbotBackend() && Object.prototype.hasOwnProperty.call(rawConfig, "device_id")) data.device_id = this.config.device_id;
+    if (Object.prototype.hasOwnProperty.call(rawConfig, "font")) data.font = this.config.font;
+    if (this.isXprinterBackend() && Object.prototype.hasOwnProperty.call(rawConfig, "host")) data.host = this.config.host;
+    if (this.isXprinterBackend() && Object.prototype.hasOwnProperty.call(rawConfig, "port")) data.port = Number(this.config.port);
     return data;
   }
 
   currentPreviewPreset() {
-    if (this.config.printer_backend === "xprinter_tspl") {
+    if (this.isXprinterBackend()) {
       return BJP_LABEL_SIZE_PRESETS[this.selectedLabelSize || this.config.label_size] || BJP_LABEL_SIZE_PRESETS["100x75"];
     }
     return {
       width: this.positiveNumber(this.config.width, 640),
       height: this.positiveNumber(this.config.height, 384),
     };
+  }
+
+  isXprinterBackend() {
+    return this.config?.printer_backend === "xprinter_tspl";
+  }
+
+  isNiimbotBackend() {
+    return !this.isXprinterBackend();
+  }
+
+  shouldRotatePreview() {
+    return this.isNiimbotBackend();
+  }
+
+  shouldShowLabelSizeSelector() {
+    return Boolean(this.config.show_label_size_selector) && this.isXprinterBackend();
   }
 
   positiveNumber(value, fallback) {

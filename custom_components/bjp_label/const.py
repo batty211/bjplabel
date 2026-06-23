@@ -1,5 +1,5 @@
 DOMAIN = "bjp_label"
-VERSION = "0.4.0"
+VERSION = "0.4.2"
 
 FRONTEND_URL = "/bjp_label"
 

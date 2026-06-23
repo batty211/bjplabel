@@ -33,6 +33,7 @@ card.config = {
   density: 3,
   rotate: 90,
   preview: false,
+  printer_backend: "niimbot",
 };
 
 const parsed = card.parseText(
@@ -105,6 +106,24 @@ assert.equal(serviceData.height, 384);
 assert.equal(serviceData.rotate, 90);
 assert.equal(serviceData.preview, false);
 assert.equal("text" in serviceData, false);
+
+const xprinterCard = new Card();
+xprinterCard.rawConfig = { printer_backend: "xprinter_tspl", host: "192.168.1.50", port: 9100, label_size: "100x75" };
+xprinterCard.config = {
+  ...card.config,
+  printer_backend: "xprinter_tspl",
+  host: "192.168.1.50",
+  port: 9100,
+  label_size: "100x75",
+};
+xprinterCard.formattedText = card.formattedText;
+xprinterCard.formatted = card.formatted;
+const xprinterServiceData = xprinterCard.serviceData();
+assert.equal(xprinterServiceData.printer_backend, "xprinter_tspl");
+assert.equal(xprinterServiceData.label_size, "100x75");
+assert.equal(xprinterServiceData.host, "192.168.1.50");
+assert.equal(xprinterServiceData.port, 9100);
+assert.equal("rotate" in xprinterServiceData, false);
 
 const withoutPostal = card.parseFormattedText(
   "ส่ง มนูญ เบญจพรหม\n081-871-9257\nโรงพยาบาลส่งเสริมสุขภาพตำบลบ้านดงกลาง",
@@ -292,11 +311,32 @@ function testPreviewImageIsRendered() {
   assert.equal(nodes.get('[data-action="print"]').disabled, false);
 }
 
+function testPreviewBackendHelpers() {
+  const niimbotCard = new Card();
+  niimbotCard.config = { ...card.config, printer_backend: "niimbot" };
+  assert.equal(niimbotCard.shouldRotatePreview(), true);
+  assert.equal(niimbotCard.shouldShowLabelSizeSelector(), false);
+
+  const xprinterPreviewCard = new Card();
+  xprinterPreviewCard.config = {
+    ...card.config,
+    printer_backend: "xprinter_tspl",
+    label_size: "100x150",
+    show_label_size_selector: true,
+  };
+  xprinterPreviewCard.selectedLabelSize = "100x150";
+  assert.equal(xprinterPreviewCard.shouldRotatePreview(), false);
+  assert.equal(xprinterPreviewCard.shouldShowLabelSizeSelector(), true);
+  assert.deepEqual(xprinterPreviewCard.currentPreviewPreset(), { width: 800, height: 1200 });
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/manifest.json")));
 const cardSource = fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/frontend/bjp-label-card.js"), "utf8");
 assert.match(cardSource, new RegExp(`BJP_LABEL_VERSION = ["']${manifest.version}["']`));
 assert.doesNotMatch(cardSource, /<section class="preview"[^>]*\shidden(?:\s|>)/);
-assert.match(cardSource, /transform:\s*translate\(-50%, -50%\) rotate\(-90deg\)/);
+assert.match(cardSource, /shouldRotatePreview\(\)/);
+assert.match(cardSource, /translate\(-50%, -50%\) rotate\(-90deg\)/);
+assert.match(cardSource, /translate\(-50%, -50%\)"/);
 assert.match(cardSource, /aspect-ratio:\s*\$\{previewWidth\}\s*\/\s*\$\{previewHeight\}/);
 
 Promise.resolve()
@@ -304,4 +344,5 @@ Promise.resolve()
   .then(testPreviewFailureRetryAndStaleResponse)
   .then(testAutomaticAndPreviewOnlyModes)
   .then(testPreviewImageIsRendered)
+  .then(testPreviewBackendHelpers)
   .then(() => console.log("card tests passed"));

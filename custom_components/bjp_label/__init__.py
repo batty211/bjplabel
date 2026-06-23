@@ -170,7 +170,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Store the printer settings selected in the config entry."""
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = dict(entry.data)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        **dict(entry.data),
+        **dict(entry.options),
+    }
+    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
 
@@ -178,6 +182,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload BJP Label printer settings."""
     hass.data[DOMAIN].pop(entry.entry_id, None)
     return True
+
+
+async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry after options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _parse_service_data(data: dict) -> ParsedLabel:

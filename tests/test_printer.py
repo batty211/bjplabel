@@ -112,6 +112,7 @@ class PrinterBackendTests(unittest.TestCase):
                 "port": 9200,
                 "label_size": "100x150",
                 "width": 123,
+                "rotate": 90,
             },
             {
                 "printer_backend": "niimbot",
@@ -127,6 +128,26 @@ class PrinterBackendTests(unittest.TestCase):
         self.assertEqual(config.port, 9200)
         self.assertEqual(config.label_size, "100x150")
         self.assertEqual(config.width, 123)
+        self.assertEqual(config.rotate, 0)
+        self.assertEqual(config.device_id, "")
+
+    def test_resolve_print_config_clears_xprinter_fields_for_niimbot(self):
+        config = resolve_print_config(
+            {
+                "printer_backend": "niimbot",
+                "device_id": "device-1",
+                "host": "192.168.1.10",
+                "label_size": "100x150",
+                "rotate": 90,
+            },
+            {},
+        )
+
+        self.assertEqual(config.backend, "niimbot")
+        self.assertEqual(config.device_id, "device-1")
+        self.assertEqual(config.host, "")
+        self.assertEqual(config.label_size, "100x75")
+        self.assertEqual(config.rotate, 90)
 
     def test_xprinter_preview_returns_image_without_network(self):
         hass = _Hass(None)

@@ -4,10 +4,25 @@
     "step": {
       "user": {
         "title": "Set up BJP Label",
-        "description": "Select the printer backend, label size, and Thai font used for customer labels.",
+        "description": "Choose the printer backend first so only the relevant settings are shown.",
+        "data": {
+          "printer_backend": "Printer backend"
+        }
+      },
+      "niimbot": {
+        "title": "Set up Niimbot",
+        "description": "Choose the Niimbot printer and Thai font for 50 x 80 mm labels.",
         "data": {
           "printer_backend": "Printer backend",
           "device_id": "Niimbot printer",
+          "font": "Thai font filename"
+        }
+      },
+      "xprinter": {
+        "title": "Set up Xprinter",
+        "description": "Enter the Xprinter host and choose the horizontal label size.",
+        "data": {
+          "printer_backend": "Printer backend",
           "host": "Xprinter host or IP",
           "port": "Xprinter port",
           "label_size": "Label size",
@@ -24,6 +39,41 @@
     },
     "abort": {
       "already_configured": "BJP Label is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit BJP Label Settings",
+        "description": "Choose which printer backend you want to edit.",
+        "data": {
+          "printer_backend": "Printer backend"
+        }
+      },
+      "niimbot": {
+        "title": "Edit Niimbot Settings",
+        "description": "Adjust the Niimbot device and Thai font.",
+        "data": {
+          "printer_backend": "Printer backend",
+          "device_id": "Niimbot printer",
+          "font": "Thai font filename"
+        }
+      },
+      "xprinter": {
+        "title": "Edit Xprinter Settings",
+        "description": "Adjust the Xprinter connection and label size.",
+        "data": {
+          "printer_backend": "Printer backend",
+          "host": "Xprinter host or IP",
+          "port": "Xprinter port",
+          "label_size": "Label size",
+          "font": "Thai font filename"
+        },
+        "data_description": {
+          "host": "For example: 192.168.1.50",
+          "font": "For example: NotoSansThai-Regular.ttf"
+        }
+      }
     }
   }
 }
