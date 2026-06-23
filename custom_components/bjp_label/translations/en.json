@@ -41,7 +41,7 @@
       "already_configured": "BJP Label is already configured."
     }
   },
-  "options": {
+  "option": {
     "step": {
       "init": {
         "title": "Edit BJP Label Settings",

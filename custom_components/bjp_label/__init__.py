@@ -139,6 +139,13 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         """Expose the active integration settings so the Lovelace card can use real values."""
         del call
         settings = _resolve_integration_settings(hass)
+        _LOGGER.debug(
+            "BJP Label get_settings resolved backend=%s label_size=%s host=%s has_device=%s",
+            settings.get(CONF_PRINTER_BACKEND, PRINTER_BACKENDS[0]),
+            settings.get(CONF_LABEL_SIZE, LABEL_SIZES[0]),
+            settings.get(CONF_HOST, ""),
+            bool(settings.get("device_id")),
+        )
         return {
             CONF_PRINTER_BACKEND: settings.get(
                 CONF_PRINTER_BACKEND, PRINTER_BACKENDS[0]
@@ -196,7 +203,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         **dict(entry.data),
         **dict(entry.options),
     }
-    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
 
@@ -206,24 +212,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the config entry after options change."""
-    await hass.config_entries.async_reload(entry.entry_id)
-
-
 def _resolve_integration_settings(hass: HomeAssistant) -> dict:
     """Return the active integration settings or deterministic defaults."""
-    return next(
-        iter(hass.data.get(DOMAIN, {}).values()),
-        {
+    settings = next(iter(hass.data.get(DOMAIN, {}).values()), None)
+    if settings is None:
+        _LOGGER.info("BJP Label get_settings requested before any config entry was loaded")
+        return {
             CONF_PRINTER_BACKEND: PRINTER_BACKENDS[0],
             CONF_FONT: DEFAULT_FONT,
             "device_id": "",
             CONF_HOST: "",
             CONF_PORT: 9100,
             CONF_LABEL_SIZE: LABEL_SIZES[0],
-        },
-    )
+        }
+    return settings
 
 
 def _parse_service_data(data: dict) -> ParsedLabel:

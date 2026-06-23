@@ -228,7 +228,7 @@ class BjpLabelConfigFlow(_BackendFlowMixin, config_entries.ConfigFlow, domain=DO
         )
 
 
-class BjpLabelOptionsFlow(_BackendFlowMixin, config_entries.OptionsFlow):
+class BjpLabelOptionsFlow(_BackendFlowMixin, config_entries.OptionsFlowWithReload):
     """Edit BJP Label settings without deleting the entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:

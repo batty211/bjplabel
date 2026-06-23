@@ -19,11 +19,11 @@ class ConfigFlowSourceTests(unittest.TestCase):
         self.assertIn("DeviceSelector", source)
         self.assertIn("CONF_HOST", source)
 
-    def test_strings_include_setup_and_options_steps(self):
+    def test_strings_include_setup_and_option_steps(self):
         source = _STRINGS.read_text(encoding="utf-8")
         self.assertIn('"niimbot"', source)
         self.assertIn('"xprinter"', source)
-        self.assertIn('"options"', source)
+        self.assertIn('"option"', source)
         self.assertIn("แก้ไขการตั้งค่า BJP Label", source)
 
 

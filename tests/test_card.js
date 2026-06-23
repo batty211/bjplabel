@@ -371,6 +371,15 @@ function testPreviewBackendHelpers() {
   assert.equal(xprinterPreviewCard.shouldRotatePreview(), false);
   assert.equal(xprinterPreviewCard.shouldShowLabelSizeSelector(), true);
   assert.deepEqual(xprinterPreviewCard.currentPreviewPreset(), { width: 800, height: 1200 });
+
+  const unresolvedCard = new Card();
+  unresolvedCard.rawConfig = {};
+  unresolvedCard.config = { ...card.config };
+  unresolvedCard.integrationSettings = null;
+  unresolvedCard.settingsLoaded = false;
+  unresolvedCard.settingsFailed = false;
+  assert.equal(unresolvedCard.hasResolvedBackend(), false);
+  assert.equal(unresolvedCard.shouldRotatePreview(), false);
 }
 
 function testIntegrationSettingsDriveBackendWhenCardDoesNotOverride() {
@@ -426,6 +435,28 @@ async function testSettingsMustLoadBeforeAutomaticPreview() {
   assert.equal(calls, 0);
 }
 
+async function testSettingsFailureStopsPreviewAndShowsError() {
+  const failedCard = new Card();
+  failedCard.config = { ...card.config, preview: false };
+  failedCard.formatted = card.parseFormattedText(
+    "สมชาย รักดี\n081-234-5678\nกรุงเทพมหานคร\n10110",
+  );
+  failedCard.updateForm = () => {};
+  failedCard._hass = {
+    callService: async () => {
+      throw new Error("settings unavailable");
+    },
+  };
+  await failedCard.loadIntegrationSettings();
+  assert.equal(failedCard.settingsLoaded, false);
+  assert.equal(failedCard.settingsFailed, true);
+  assert.equal(failedCard.hasResolvedBackend(), false);
+  assert.equal(failedCard.shouldRotatePreview(), false);
+  await failedCard.generatePreview();
+  assert.equal(failedCard.previewSnapshot ?? null, null);
+  assert.match(failedCard.status, /ยังโหลดค่าพรินเตอร์ไม่สำเร็จ/);
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/manifest.json")));
 const cardSource = fs.readFileSync(path.join(__dirname, "../custom_components/bjp_label/frontend/bjp-label-card.js"), "utf8");
 assert.match(cardSource, new RegExp(`BJP_LABEL_VERSION = ["']${manifest.version}["']`));
@@ -443,4 +474,5 @@ Promise.resolve()
   .then(testPreviewBackendHelpers)
   .then(testIntegrationSettingsDriveBackendWhenCardDoesNotOverride)
   .then(testSettingsMustLoadBeforeAutomaticPreview)
+  .then(testSettingsFailureStopsPreviewAndShowsError)
   .then(() => console.log("card tests passed"));

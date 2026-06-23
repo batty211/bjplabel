@@ -1,4 +1,4 @@
-const BJP_LABEL_VERSION = "0.4.3";
+const BJP_LABEL_VERSION = "0.4.4";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
 const BJP_LABEL_SIZE_PRESETS = {
@@ -42,6 +42,7 @@ class BjpLabelCard extends HTMLElement {
     this.integrationSettings = null;
     this.loadingSettings = false;
     this.settingsLoaded = false;
+    this.settingsFailed = false;
     this.selectedLabelSize = this.config.label_size || "100x75";
     this.text = "";
     this.formattedText = "";
@@ -64,7 +65,8 @@ class BjpLabelCard extends HTMLElement {
   }
 
   // Home Assistant injects hass here; use it to fetch real integration settings
-  // before we start generating previews.
+  // before we start generating previews. We wait here so preview orientation
+  // uses the resolved printer backend instead of guessing Niimbot.
   set hass(hass) {
     this._hass = hass;
     this.loadIntegrationSettings();
@@ -355,14 +357,24 @@ class BjpLabelCard extends HTMLElement {
     placeholder.hidden = Boolean(this.previewImage);
     placeholder.textContent = this.loadingSettings
       ? "กำลังโหลดค่าการพิมพ์..."
-      : this.isPreviewing
-        ? "กำลังสร้างตัวอย่าง..."
-        : this.previewError
-          ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง"
-          : "รอสร้างตัวอย่างฉลาก";
+      : this.settingsFailed
+        ? "ยังโหลดค่าพรินเตอร์ไม่สำเร็จ"
+        : this.isPreviewing
+          ? "กำลังสร้างตัวอย่าง..."
+          : this.previewError
+            ? "ยังสร้างตัวอย่างไม่ได้ กรุณาลองอีกครั้ง"
+            : "รอสร้างตัวอย่างฉลาก";
     retryButton.hidden = !this.previewError || this.isPreviewing;
     const status = this.querySelector(".status");
-    status.textContent = this.status || (this.formatted.valid ? (this.loadingSettings ? "กำลังโหลดค่าการตั้งค่าเครื่องพิมพ์" : "กำลังเตรียมตัวอย่างก่อนพิมพ์") : "รอข้อมูล");
+    status.textContent = this.status || (
+      this.formatted.valid
+        ? this.loadingSettings
+          ? "กำลังโหลดค่าการตั้งค่าเครื่องพิมพ์"
+          : this.settingsFailed
+            ? "ยังโหลดค่าพรินเตอร์ไม่สำเร็จ กรุณาตรวจสอบ integration"
+            : "กำลังเตรียมตัวอย่างก่อนพิมพ์"
+        : "รอข้อมูล"
+    );
     status.dataset.type = this.statusType;
   }
 
@@ -432,7 +444,9 @@ class BjpLabelCard extends HTMLElement {
   schedulePreview(delay = BJP_LABEL_PREVIEW_DELAY) {
     if (this.previewTimer !== undefined) clearTimeout(this.previewTimer);
     this.previewTimer = undefined;
-    if (!this.formatted?.valid || !this._hass || !this.settingsLoaded || this.loadingSettings) return;
+    // Preview must wait until the backend is resolved; otherwise Xprinter cards
+    // can render with the Niimbot rotation by mistake.
+    if (!this.formatted?.valid || !this._hass || !this.hasResolvedBackend() || this.loadingSettings || this.settingsFailed) return;
     const revision = this.previewRevision;
     this.previewTimer = setTimeout(() => {
       this.previewTimer = undefined;
@@ -442,11 +456,11 @@ class BjpLabelCard extends HTMLElement {
 
   // Preview uses the real backend selected in the integration and requests only an image response.
   async generatePreview(revision = this.previewRevision) {
-    if (!this.formatted?.valid || !this._hass || !this.settingsLoaded || revision !== this.previewRevision || this.isPreviewing || this.isPrinting) return;
+    if (!this.formatted?.valid || !this._hass || !this.hasResolvedBackend() || this.settingsFailed || revision !== this.previewRevision || this.isPreviewing || this.isPrinting) return;
     const previewData = this.serviceData(true);
     this.isPreviewing = true;
     this.previewError = false;
-    this.status = "กำลังสร้างตัวอย่างโดยไม่ใช้กระดาษ...";
+    this.status = "กำลังสร้างตัวอย่างก่อนพิมพ์...";
     this.statusType = "printing";
     this.updateForm();
     try {
@@ -503,6 +517,7 @@ class BjpLabelCard extends HTMLElement {
   async loadIntegrationSettings() {
     if (!this._hass || this.loadingSettings || this.settingsLoaded) return;
     this.loadingSettings = true;
+    this.settingsFailed = false;
     this.updateForm?.();
     try {
       const response = await this._hass.callService("bjp_label", "get_settings", {}, undefined, true, true);
@@ -514,14 +529,18 @@ class BjpLabelCard extends HTMLElement {
         this.selectedLabelSize = this.integrationSettings.label_size || this.selectedLabelSize;
       }
       this.settingsLoaded = true;
+      this.settingsFailed = false;
     } catch (error) {
       console.warn("BJP Label: โหลดค่าการตั้งค่าเครื่องพิมพ์ไม่สำเร็จ", error);
-      this.integrationSettings = { ...BJP_LABEL_INTEGRATION_DEFAULTS };
-      this.settingsLoaded = true;
+      this.integrationSettings = null;
+      this.settingsLoaded = false;
+      this.settingsFailed = true;
+      this.status = "ยังโหลดค่าพรินเตอร์ไม่สำเร็จ กรุณาตรวจสอบ integration";
+      this.statusType = "error";
     } finally {
       this.loadingSettings = false;
       this.updateForm?.();
-      if (this.formatted?.valid && !this.previewImage && !this.isPreviewing && !this.previewError && this.previewTimer === undefined) {
+      if (this.formatted?.valid && !this.settingsFailed && !this.previewImage && !this.isPreviewing && !this.previewError && this.previewTimer === undefined) {
         this.schedulePreview();
       }
     }
@@ -531,27 +550,22 @@ class BjpLabelCard extends HTMLElement {
   // card override -> integration config -> deterministic integration defaults.
   effectiveSettings() {
     const rawConfig = this.rawConfig || {};
-    const integrationSettings = this.integrationSettings || BJP_LABEL_INTEGRATION_DEFAULTS;
+    const integrationSettings = this.settingsLoaded
+      ? (this.integrationSettings || BJP_LABEL_INTEGRATION_DEFAULTS)
+      : BJP_LABEL_INTEGRATION_DEFAULTS;
     return {
-      printer_backend: Object.prototype.hasOwnProperty.call(rawConfig, "printer_backend")
-        ? this.config.printer_backend
-        : integrationSettings.printer_backend,
-      font: Object.prototype.hasOwnProperty.call(rawConfig, "font")
-        ? this.config.font
-        : integrationSettings.font,
-      device_id: Object.prototype.hasOwnProperty.call(rawConfig, "device_id")
-        ? this.config.device_id
-        : integrationSettings.device_id,
-      host: Object.prototype.hasOwnProperty.call(rawConfig, "host")
-        ? this.config.host
-        : integrationSettings.host,
-      port: Object.prototype.hasOwnProperty.call(rawConfig, "port")
-        ? Number(this.config.port)
-        : Number(integrationSettings.port),
-      label_size: Object.prototype.hasOwnProperty.call(rawConfig, "label_size")
-        ? (this.selectedLabelSize || this.config.label_size || "100x75")
-        : (this.selectedLabelSize || integrationSettings.label_size || "100x75"),
+      printer_backend: Object.prototype.hasOwnProperty.call(rawConfig, "printer_backend") ? this.config.printer_backend : integrationSettings.printer_backend,
+      font: Object.prototype.hasOwnProperty.call(rawConfig, "font") ? this.config.font : integrationSettings.font,
+      device_id: Object.prototype.hasOwnProperty.call(rawConfig, "device_id") ? this.config.device_id : integrationSettings.device_id,
+      host: Object.prototype.hasOwnProperty.call(rawConfig, "host") ? this.config.host : integrationSettings.host,
+      port: Object.prototype.hasOwnProperty.call(rawConfig, "port") ? Number(this.config.port) : Number(integrationSettings.port),
+      label_size: Object.prototype.hasOwnProperty.call(rawConfig, "label_size") ? this.selectedLabelSize || this.config.label_size || "100x75" : this.selectedLabelSize || integrationSettings.label_size || "100x75",
     };
+  }
+
+  hasResolvedBackend() {
+    const rawConfig = this.rawConfig || {};
+    return Object.prototype.hasOwnProperty.call(rawConfig, "printer_backend") || this.settingsLoaded;
   }
 
   // Build the print/preview payload using the active backend's real settings.
@@ -593,14 +607,16 @@ class BjpLabelCard extends HTMLElement {
   }
 
   isXprinterBackend() {
-    return this.effectiveSettings().printer_backend === "xprinter_tspl";
+    return this.hasResolvedBackend() && this.effectiveSettings().printer_backend === "xprinter_tspl";
   }
 
   isNiimbotBackend() {
-    return !this.isXprinterBackend();
+    return this.hasResolvedBackend() && this.effectiveSettings().printer_backend === "niimbot";
   }
 
   shouldRotatePreview() {
+    // Unresolved backend must not default to Niimbot; waiting is safer than rotating wrong.
+    if (!this.hasResolvedBackend()) return false;
     return this.isNiimbotBackend();
   }
 

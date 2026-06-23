@@ -41,7 +41,7 @@
       "already_configured": "ตั้งค่า BJP Label ไว้แล้ว"
     }
   },
-  "options": {
+  "option": {
     "step": {
       "init": {
         "title": "แก้ไขการตั้งค่า BJP Label",
