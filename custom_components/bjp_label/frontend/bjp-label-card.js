@@ -1,4 +1,4 @@
-const BJP_LABEL_VERSION = "0.4.8";
+const BJP_LABEL_VERSION = "0.4.9";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
 const BJP_LABEL_SIZE_PRESETS = {

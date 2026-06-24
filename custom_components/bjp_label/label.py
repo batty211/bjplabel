@@ -145,6 +145,10 @@ def render_label_image(
     image = Image.new("L", (preset.canvas_width, preset.canvas_height), 255)
     draw = ImageDraw.Draw(image)
 
+    if label_size == LABEL_SIZE_100X75:
+        _draw_bordered_100x75_layout(draw, parsed, font)
+        return image
+
     _draw_single_line(
         draw,
         parsed.name,
@@ -184,6 +188,64 @@ def render_label_image(
     return image
 
 
+def _draw_bordered_100x75_layout(
+    draw: ImageDraw.ImageDraw,
+    parsed: LabelData,
+    font: str,
+) -> None:
+    border = (36, 36, 764, 564)
+    separators = (126, 206, 466)
+
+    draw.rectangle(border, outline=0, width=5)
+    for y in separators:
+        draw.line((border[0], y, border[2], y), fill=0, width=2)
+
+    _draw_single_line(draw, "ผู้รับ", font, (52, 54, 74, 48), 30, min_size=22)
+    _draw_single_line(draw, "โทร", font, (52, 144, 58, 42), 30, min_size=22)
+    _draw_single_line(draw, "ที่อยู่", font, (52, 218, 78, 46), 30, min_size=22)
+    _draw_single_line(draw, "รหัสไปรษณีย์", font, (52, 494, 164, 42), 26, min_size=18)
+
+    _draw_single_line(
+        draw,
+        parsed.name,
+        font,
+        (124, 46, 594, 72),
+        60,
+        min_size=34,
+        weight=2,
+    )
+    _draw_single_line(
+        draw,
+        parsed.phone,
+        font,
+        (124, 134, 430, 62),
+        56,
+        min_size=32,
+        weight=2,
+    )
+    if parsed.address:
+        _draw_multiline(
+            draw,
+            parsed.address,
+            font,
+            (104, 272, 610, 158),
+            39,
+            min_size=26,
+            spacing=16,
+            weight=1,
+        )
+    if parsed.postal_code:
+        _draw_single_line(
+            draw,
+            parsed.postal_code,
+            font,
+            (220, 472, 300, 72),
+            62,
+            min_size=38,
+            weight=2,
+        )
+
+
 def render_label_png_data_url(
     parsed: LabelData,
     *,
@@ -206,6 +268,7 @@ def _draw_single_line(
     size: int,
     *,
     min_size: int,
+    weight: int = 0,
 ) -> None:
     if not text:
         return
@@ -214,7 +277,7 @@ def _draw_single_line(
     font = _fit_font(draw, text, font_path, width, height, size, min_size)
     bbox = draw.textbbox((0, 0), text, font=font)
     top = y + max((height - (bbox[3] - bbox[1])) // 2, 0)
-    draw.text((x, top), text, font=font, fill=0)
+    _draw_weighted_text(draw, (x, top), text, font, weight=weight)
 
 
 def _draw_multiline(
@@ -226,6 +289,7 @@ def _draw_multiline(
     *,
     min_size: int,
     spacing: int,
+    weight: int = 0,
 ) -> None:
     if not text:
         return
@@ -241,7 +305,49 @@ def _draw_multiline(
         min_size,
         spacing,
     )
-    draw.multiline_text((x, y), text, font=font, fill=0, spacing=final_spacing)
+    _draw_weighted_multiline_text(
+        draw,
+        (x, y),
+        text,
+        font,
+        spacing=final_spacing,
+        weight=weight,
+    )
+
+
+def _draw_weighted_text(
+    draw: ImageDraw.ImageDraw,
+    position: tuple[int, int],
+    text: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    *,
+    weight: int,
+) -> None:
+    x, y = position
+    for dx, dy in _weight_offsets(weight):
+        draw.text((x + dx, y + dy), text, font=font, fill=0)
+
+
+def _draw_weighted_multiline_text(
+    draw: ImageDraw.ImageDraw,
+    position: tuple[int, int],
+    text: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    *,
+    spacing: int,
+    weight: int,
+) -> None:
+    x, y = position
+    for dx, dy in _weight_offsets(weight):
+        draw.multiline_text((x + dx, y + dy), text, font=font, fill=0, spacing=spacing)
+
+
+def _weight_offsets(weight: int) -> tuple[tuple[int, int], ...]:
+    if weight <= 0:
+        return ((0, 0),)
+    if weight == 1:
+        return ((0, 0), (1, 0), (0, 1))
+    return ((0, 0), (1, 0), (0, 1), (1, 1))
 
 
 def _fit_font(

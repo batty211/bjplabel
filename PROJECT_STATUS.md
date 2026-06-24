@@ -1,6 +1,6 @@
 # BJP Label Project Status
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 ## Done
 
@@ -30,12 +30,14 @@ Last updated: 2026-06-23
 - Added file-based debug logging for config-edit flow steps and exceptions to help diagnose Home Assistant Config page failures.
 - Fixed options-flow initialization so debug logging also works when the Config page fails before any step renders.
 - Stopped writing to the Home Assistant `config_entry` property inside `OptionsFlowWithReload` and now keep the entry in a private field to avoid Config-page creation crashes.
+- Released v0.4.9 with a bordered Thai sample-style layout for Xprinter 100 x 75 mm labels while keeping the Niimbot payload unchanged.
 
 ## Verification
 
 - Parser unit tests pass locally.
 - JavaScript, Python, JSON, and YAML syntax checks pass locally.
 - Home Assistant runtime setup and physical Niimbot output still require testing on the target system.
+- Physical Xprinter output for the new bordered 100 x 75 mm layout still requires testing on the target printer.
 
 ## Installation Notes
 
