@@ -116,6 +116,24 @@ assert.equal(serviceData.rotate, 90);
 assert.equal(serviceData.preview, false);
 assert.equal("text" in serviceData, false);
 
+const extensionPhone = card.parseFormattedText(
+  "ส่ง นายสมชาย รักดี\n02 324 5678 ต่อ 551\n99/1 ถนนสุขุมวิท\n10110",
+);
+assert.equal(extensionPhone.valid, true);
+assert.equal(extensionPhone.phone, "02 324 5678 ต่อ 551");
+card.formatted = extensionPhone;
+assert.equal(card.serviceData().phone, "02 324 5678 ต่อ 551");
+
+const malformedPostal = card.parseFormattedText(
+  "ส่ง นายสมชาย รักดี\n02 324 5678 ต่อ 551\n99/1 ถนนสุขุมวิท\n8400",
+);
+assert.equal(malformedPostal.valid, true);
+assert.equal(malformedPostal.postalCode, "");
+assert.match(malformedPostal.message, /รหัสไปรษณีย์ควรเป็นตัวเลข 5 หลัก/);
+card.formatted = malformedPostal;
+assert.equal(card.serviceData().postal_code, "");
+card.formatted = card.parseFormattedText(card.formattedText);
+
 const xprinterCard = new Card();
 xprinterCard.rawConfig = { printer_backend: "xprinter_tspl", host: "192.168.1.50", port: 9100, label_size: "100x75" };
 xprinterCard.config = {
@@ -154,7 +172,7 @@ assert.equal(
 );
 
 assert.equal(
-  card.parseFormattedText("ส่ง สมชาย รักดี\n123\nกรุงเทพฯ").valid,
+  card.parseFormattedText("ส่ง สมชาย รักดี").valid,
   false,
 );
 assert.equal(

@@ -1,4 +1,4 @@
-const BJP_LABEL_VERSION = "0.4.9";
+const BJP_LABEL_VERSION = "0.4.10";
 const BJP_LABEL_POSTCODE_URL = `/bjp_label/postcodes.json?v=${BJP_LABEL_VERSION}`;
 const BJP_LABEL_PREVIEW_DELAY = 800;
 const BJP_LABEL_SIZE_PRESETS = {
@@ -99,7 +99,7 @@ class BjpLabelCard extends HTMLElement {
 
           <div class="formatted">
             <label for="formatted-text">ตรวจสอบและแก้ไขก่อนพิมพ์</label>
-            <div class="hint">บรรทัดแรกเป็นชื่อ บรรทัดที่สองเป็นเบอร์โทร และบรรทัดสุดท้ายเป็นรหัสไปรษณีย์</div>
+            <div class="hint">บรรทัดแรกเป็นชื่อ บรรทัดที่สองเป็นเบอร์หรือช่องทางติดต่อ และบรรทัดสุดท้ายเป็นรหัสไปรษณีย์ถ้ามี</div>
             <textarea id="formatted-text" rows="7" placeholder="ข้อความที่จัดรูปแบบแล้วจะแสดงที่นี่">${this.escape(this.formattedText)}</textarea>
             <div class="warning" data-warning aria-live="polite"></div>
           </div>
@@ -646,11 +646,14 @@ class BjpLabelCard extends HTMLElement {
 
     const name = (lines[0] || "").replace(/^#?\s*ส่ง\s*/, "").trim();
     const phone = lines[1] || "";
-    const phoneDigits = phone.replace(/\D/g, "");
     let postalCode = "";
     let addressEnd = lines.length;
+    let warning = "";
     if (lines.length > 2 && /^\d{5}$/.test(lines[lines.length - 1])) {
       postalCode = lines[lines.length - 1];
+      addressEnd -= 1;
+    } else if (lines.length > 2 && this.looksLikePostalCode(lines[lines.length - 1])) {
+      warning = "รหัสไปรษณีย์ควรเป็นตัวเลข 5 หลัก กรุณาตรวจสอบ";
       addressEnd -= 1;
     }
     const address = lines.slice(2, addressEnd).join("\n");
@@ -658,13 +661,19 @@ class BjpLabelCard extends HTMLElement {
     if (!name) {
       return { valid: false, name, phone, address, postalCode, message: "กรุณากรอกชื่อในบรรทัดแรก" };
     }
-    if (phoneDigits.length < 9 || phoneDigits.length > 10) {
-      return { valid: false, name, phone, address, postalCode, message: "กรุณาตรวจสอบเบอร์โทรในบรรทัดที่สอง" };
+    if (!phone) {
+      return { valid: false, name, phone, address, postalCode, message: "กรุณากรอกเบอร์หรือช่องทางติดต่อในบรรทัดที่สอง" };
     }
     if (address.split("\n").filter(Boolean).length > 3) {
       return { valid: false, name, phone, address, postalCode, message: "ที่อยู่ต้องไม่เกิน 3 บรรทัด กรุณาจัดบรรทัดใหม่" };
     }
-    return { valid: true, name, phone, address, postalCode, message: "" };
+    return { valid: true, name, phone, address, postalCode, message: warning };
+  }
+
+  looksLikePostalCode(value) {
+    const text = String(value || "").trim();
+    if (!text) return false;
+    return /^\d+$/.test(text) || /รหัส\s*ไปรษณีย์|ไปรษณีย์/.test(text);
   }
 
   parseText(value) {

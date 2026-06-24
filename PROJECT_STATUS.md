@@ -31,6 +31,7 @@ Last updated: 2026-06-24
 - Fixed options-flow initialization so debug logging also works when the Config page fails before any step renders.
 - Stopped writing to the Home Assistant `config_entry` property inside `OptionsFlowWithReload` and now keep the entry in a private field to avoid Config-page creation crashes.
 - Released v0.4.9 with a bordered Thai sample-style layout for Xprinter 100 x 75 mm labels while keeping the Niimbot payload unchanged.
+- Released v0.4.10 with more flexible edited contact text and clear non-blocking postal-code warnings in the Lovelace card.
 
 ## Verification
 
